@@ -117,11 +117,25 @@ export class FileAgent {
             }
 
 
-            fs.writeFileSync(
-                filePath,
-                action.content || "",
-                "utf8"
-            );
+            try {
+
+                fs.writeFileSync(
+                    filePath,
+                    action.content || "",
+                    "utf8"
+                );
+
+            } catch (error) {
+
+                return {
+
+                    success: false,
+
+                    error: error.message
+
+                };
+
+            }
 
 
             console.log(
@@ -137,6 +151,158 @@ export class FileAgent {
                 file: filePath,
 
                 message: "File created"
+
+            };
+
+        }
+
+
+        if (action.action === "edit") {
+
+            const filePath =
+                this.resolveInside(action.file);
+
+            if (!filePath) {
+
+                return {
+
+                    success: false,
+
+                    error: "Invalid file path"
+
+                };
+
+            }
+
+
+            if (!fs.existsSync(filePath)) {
+
+                return {
+
+                    success: false,
+
+                    error: "File not found",
+
+                    file: filePath
+
+                };
+
+            }
+
+
+            // Patch replace: oldCode -> newCode.
+            if (
+                typeof action.oldCode === "string" &&
+                action.oldCode.length > 0
+            ) {
+
+                try {
+
+                    const result = this.patch.replace(
+                        filePath,
+                        action.oldCode,
+                        typeof action.newCode === "string"
+                            ? action.newCode
+                            : ""
+                    );
+
+                    if (!result.success) {
+
+                        return {
+
+                            success: false,
+
+                            error:
+                                result.message ||
+                                result.error ||
+                                "Edit failed",
+
+                            file: filePath
+
+                        };
+
+                    }
+
+                    console.log(
+                        "Updated:",
+                        filePath
+                    );
+
+                    return {
+
+                        success: true,
+
+                        file: filePath,
+
+                        message:
+                            result.message ||
+                            "File updated"
+
+                    };
+
+                } catch (error) {
+
+                    return {
+
+                        success: false,
+
+                        error: error.message
+
+                    };
+
+                }
+
+            }
+
+
+            // Full overwrite with new content.
+            if (typeof action.content === "string") {
+
+                try {
+
+                    fs.writeFileSync(
+                        filePath,
+                        action.content,
+                        "utf8"
+                    );
+
+                } catch (error) {
+
+                    return {
+
+                        success: false,
+
+                        error: error.message
+
+                    };
+
+                }
+
+                console.log(
+                    "Updated:",
+                    filePath
+                );
+
+                return {
+
+                    success: true,
+
+                    file: filePath,
+
+                    message: "File updated"
+
+                };
+
+            }
+
+
+            return {
+
+                success: false,
+
+                error: "No edit content provided",
+
+                file: filePath
 
             };
 

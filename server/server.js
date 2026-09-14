@@ -8,11 +8,13 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
-import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { CodeAgent } from "../agent/codeAgent.js";
 import { resolveAuthPolicy } from "./authPolicy.js";
+import { createRequireAuth } from "./authMiddleware.js";
 import { isPublicPathname } from "./staticGuard.js";
+import { handleCodexRequest } from "./codexHandler.js";
+import { isSensitivePath } from "./pathGuard.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -132,73 +134,17 @@ function rateLimit({ windowMs, max }) {
    AUTH MIDDLEWARE
 =========================================================== */
 
-function safeEqual(a, b) {
-    const bufferA = Buffer.from(a);
-    const bufferB = Buffer.from(b);
-    if (bufferA.length !== bufferB.length) {
-        return false;
-    }
-    return crypto.timingSafeEqual(bufferA, bufferB);
-}
-
-function requireAuth(req, res, next) {
-    if (DEV_NO_AUTH) {
-        return next();
-    }
-    if (!API_TOKEN) {
-        return res.status(503).json({
-            success: false,
-            error: "SERVER_API_TOKEN is not configured. Set SERVER_API_TOKEN in production, or set ALLOW_NO_AUTH=true for local development only."
-        });
-    }
-
-    const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
-
-    if (!token || !safeEqual(token, API_TOKEN)) {
-        return res.status(401).json({
-            success: false,
-            error: "Unauthorized"
-        });
-    }
-
-    next();
-}
+const requireAuth = createRequireAuth({
+    authDisabled: DEV_NO_AUTH,
+    apiToken: API_TOKEN
+});
 
 /* ===========================================================
    PATH GUARDS
 =========================================================== */
 
-// Block sensitive/private runtime files from being served or read.
-function isSensitivePath(filePath) {
-    const normalized = path.normalize(filePath)
-        .replace(/\\/g, "/")
-        .toLowerCase();
-
-    if (normalized === "." || normalized === "") {
-        return true;
-    }
-    if (normalized.includes(".env")) {
-        return true;
-    }
-    if (normalized.endsWith(".bak")) {
-        return true;
-    }
-    if (normalized === "server" || normalized.startsWith("server/")) {
-        return true;
-    }
-    if (normalized === "memory" || normalized.startsWith("memory/")) {
-        return true;
-    }
-    if (normalized === "backups" || normalized.startsWith("backups/")) {
-        return true;
-    }
-    if (normalized === "bugs.json" || normalized === "memory.json") {
-        return true;
-    }
-
-    return false;
-}
+// isSensitivePath is shared from server/pathGuard.js (used by /file,
+// /codex/analyze-file and the codex file-operation handler).
 
 /* ===========================================================
    CONFIG
@@ -372,18 +318,12 @@ app.post("/codex",
     rateLimit({ windowMs: 60 * 1000, max: 5 }),
     async (req, res) => {
     try {
-        const { task } = req.body;
+        const outcome = await handleCodexRequest(
+            req.body,
+            codex
+        );
 
-        if (!task) {
-            return res.status(400).json({
-                success: false,
-                error: "Task required"
-            });
-        }
-
-        const result = await codex.run(task);
-
-        res.json({ success: true, result });
+        return res.status(outcome.status).json(outcome.json);
 
     } catch (error) {
         console.error("Codex Error:", error.message);
