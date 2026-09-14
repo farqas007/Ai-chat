@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 import { Planner } from "./planner.js";
@@ -18,16 +19,20 @@ import { DiffEngine } from "./diffEngine.js";
 import { BackupManager } from "./backupManager.js";
 import { ProjectIndexer } from "./projectIndexer.js";
 import { DependencyAnalyzer } from "./dependencyAnalyzer.js";
+import {
+    isSuspiciousPathToken
+} from "./taskParser.js";
+import { isSafeEditPath } from "../server/pathGuard.js";
 
 export class CodeAgent {
 
- constructor() {
+ constructor(options = {}) {
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const projectRoot = path.resolve(__dirname, "..");
+const projectRoot = options.root || path.resolve(__dirname, "..");
 
 this.planner = new Planner();
 
@@ -98,12 +103,21 @@ if (!step) break;
 step.startedAt = Date.now();
 
 
-const result = await this.execute(step);
+const result = await this.execute(step, graph);
 
 
 // result ko step me save karo
 
 step.result = result;
+
+
+if (result && result.success === false) {
+
+    this.taskGraph.fail(step);
+
+    break;
+
+}
 
 
 this.taskGraph.complete(step);
@@ -114,7 +128,7 @@ this.taskGraph.complete(step);
     return graph;
 }
 
-    async execute(step) {
+    async execute(step, graph = []) {
 
     console.log("Executing:", step);
 
@@ -165,6 +179,18 @@ this.taskGraph.complete(step);
 
             return this.generate(step.task);
 
+        case "find":
+
+            return this.findStep(step);
+
+        case "read":
+
+            return this.readStep(step, graph);
+
+        case "patch":
+
+            return this.patchStep(step, graph);
+
         case "file":
 
 
@@ -181,6 +207,46 @@ this.taskGraph.complete(step);
    return this.executeFilePlan(plan);
 
 }
+
+    if (step.action === "edit") {
+
+        const patchResult = this.dependencyResult(graph, step, "patch");
+
+        let action = patchResult && patchResult.action;
+
+        if (!action && step.file) {
+
+            action = {
+                action: "edit",
+                file: step.file,
+                oldCode: step.oldCode,
+                newCode: step.newCode,
+                content: step.content
+            };
+        }
+
+        if (!action) {
+
+            return {
+                success: false,
+                error: "No edit operation generated"
+            };
+        }
+
+        if (
+            !this.files.resolveInside(action.file) ||
+            !isSafeEditPath(action.file)
+        ) {
+
+            return {
+                success: false,
+                error: "Access denied"
+            };
+        }
+
+        return this.files.execute(action);
+
+    }
 
     return this.files.execute(step);
 
@@ -221,6 +287,228 @@ console.log(
 );
 
 }
+
+    // Returns the result of a dependency step by type (e.g. the "find"
+    // result reached from a "read" step).
+    dependencyResult(graph, step, type) {
+
+        const ids = step.dependsOn || [];
+
+        for (const id of ids) {
+
+            const dep = graph.find(s => s.id === id);
+
+            if (dep && dep.type === type && dep.result) {
+
+                return dep.result;
+
+            }
+
+        }
+
+        return null;
+
+    }
+
+    // Locates the file a natural-language edit task wants to modify.
+    // Rejects traversal / encoded-traversal / backslash / sensitive paths
+    // before any file is trusted, and never reports success for a missing
+    // file.
+    findStep(step) {
+
+        if (isSuspiciousPathToken(step.task)) {
+
+            return {
+                success: false,
+                error: "Access denied"
+            };
+        }
+
+        let file = step.fileHint;
+
+        if (!file && step.keyword) {
+
+            const files = this.scanner.scan();
+
+            const matches = this.scanner.findFile(files, step.keyword);
+
+            file = this.pickBestMatch(matches, step.keyword);
+
+            if (!file) {
+
+                return {
+                    success: false,
+                    error: "File not found"
+                };
+            }
+        }
+
+        if (!file) {
+
+            return {
+                success: false,
+                error: "Could not determine target file"
+            };
+        }
+
+        const fullPath = this.files.resolveInside(file);
+
+        if (!fullPath || !isSafeEditPath(file)) {
+
+            return {
+                success: false,
+                error: "Access denied"
+            };
+        }
+
+        if (!fs.existsSync(fullPath)) {
+
+            return {
+                success: false,
+                error: "File not found"
+            };
+        }
+
+        return {
+            success: true,
+            file,
+            fullPath
+        };
+    }
+
+    // Picks the closest matching file for a keyword search, preferring an
+    // exact basename match.
+    pickBestMatch(matches, keyword) {
+
+        if (!matches || matches.length === 0) {
+
+            return null;
+        }
+
+        const kw = keyword.toLowerCase();
+
+        const exact = matches.find(
+            m => path.basename(m).toLowerCase() === kw
+        );
+
+        if (exact) {
+
+            return exact;
+        }
+
+        const prefix = matches.find(
+            m => path.basename(m).toLowerCase().startsWith(kw)
+        );
+
+        if (prefix) {
+
+            return prefix;
+        }
+
+        return matches[0];
+    }
+
+    // Reads the file located by the find step.
+    readStep(step, graph) {
+
+        const findResult =
+            this.dependencyResult(graph, step, "find");
+
+        const file = findResult && findResult.file;
+
+        if (!file) {
+
+            return {
+                success: false,
+                error: "File not found"
+            };
+        }
+
+        const content = this.files.read(file);
+
+        if (content === null || content === undefined) {
+
+            return {
+                success: false,
+                error: "File not found"
+            };
+        }
+
+        return {
+            success: true,
+            file,
+            content
+        };
+    }
+
+    // Validates that the old content exists in the read file and prepares
+    // the concrete edit action for the file step to apply.
+    patchStep(step, graph) {
+
+        const oldCode = step.oldCode;
+
+        const newCode = step.newCode;
+
+        if (
+            typeof oldCode !== "string" ||
+            oldCode.length === 0 ||
+            typeof newCode !== "string"
+        ) {
+
+            return {
+                success: false,
+                error: "Could not determine edit content"
+            };
+        }
+
+        const readResult =
+            this.dependencyResult(graph, step, "read");
+
+        if (!readResult) {
+
+            return {
+                success: false,
+                error: "Read step failed"
+            };
+        }
+
+        if (
+            typeof readResult.content !== "string" ||
+            !readResult.content.includes(oldCode)
+        ) {
+
+            return {
+                success: false,
+                error: "Old code not found"
+            };
+        }
+
+        const file = readResult.file;
+
+        if (
+            !this.files.resolveInside(file) ||
+            !isSafeEditPath(file)
+        ) {
+
+            return {
+                success: false,
+                error: "Access denied"
+            };
+        }
+
+        return {
+            success: true,
+            file,
+            oldCode,
+            newCode,
+            action: {
+                action: "edit",
+                file,
+                oldCode,
+                newCode
+            }
+        };
+    }
 
     generate(task) {
 

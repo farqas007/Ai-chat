@@ -145,7 +145,13 @@ export async function handleCodexRequest(body, codex) {
 
     // Never report a fake success: surface a graph that contains failed steps.
     const failedStep = (Array.isArray(result) ? result : [])
-        .find(step => step && step.result && step.result.success === false);
+        .find(step =>
+            step &&
+            (
+                step.status === "failed" ||
+                (step.result && step.result.success === false)
+            )
+        );
 
     if (failedStep) {
         return {

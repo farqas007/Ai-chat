@@ -1,3 +1,10 @@
+import {
+    extractFileName,
+    extractKeyword,
+    extractPatch
+} from "./taskParser.js";
+
+
 export class Planner {
 
     create(task) {
@@ -32,9 +39,14 @@ export class Planner {
             lower.includes("update")
         ) {
 
+            const patch = extractPatch(task) || {};
+
             plan.push({
                 type: "find",
                 target: "file",
+                task,
+                fileHint: extractFileName(task),
+                keyword: extractKeyword(task),
                 priority: 4,
                 dependsOn: [3]
             });
@@ -49,6 +61,9 @@ export class Planner {
             plan.push({
                 type: "patch",
                 action: "generate",
+                task,
+                oldCode: patch.oldCode,
+                newCode: patch.newCode,
                 priority: 6,
                 dependsOn: [5]
             });
