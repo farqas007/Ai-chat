@@ -171,6 +171,17 @@ if (!this.chat.getCurrentChat()) {
 }
 
 
+            // Sync sidebar active state with restored/created chat
+
+if (this.chat.state.currentChatId) {
+
+    this.sidebar.setActiveChat(
+        this.chat.state.currentChatId
+    );
+
+}
+
+
             this.codeblock.initialize();
 
 
@@ -352,6 +363,37 @@ Events.on(
     }
 
 );
+
+
+        /*
+          Select Chat
+        */
+
+
+        Events.on(
+
+            "chat:selected",
+
+            chatId => {
+
+
+                if (typeof chatId !== "string") {
+
+                    return;
+
+                }
+
+
+                this.chat.openChat(
+
+                    chatId
+
+                );
+
+
+            }
+
+        );
 
 
         /*

@@ -671,6 +671,40 @@ registerChatEvents() {
 
     Events.on(
 
+        "chat:selected",
+
+        chat => {
+
+
+            const chatId =
+
+                typeof chat === "string"
+
+                    ? chat
+
+                    : chat && chat.id;
+
+
+            if (chatId) {
+
+
+                this.setActiveChat(
+
+                    chatId
+
+                );
+
+
+            }
+
+
+        }
+
+    );
+
+
+    Events.on(
+
         "chat:created",
 
         chat => {
