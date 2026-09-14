@@ -60,6 +60,31 @@ export class ImageGenerator {
 
 
     /* =======================================================
+       AUTH HEADERS (optional bearer token for production)
+    ======================================================= */
+
+
+    getAuthHeaders(){
+
+        const headers = {
+            "Content-Type": "application/json"
+        };
+
+        const token =
+            window.AI_CHAT_TOKEN ||
+            localStorage.getItem("ai_chat_token") ||
+            "";
+
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        return headers;
+
+    }
+
+
+    /* =======================================================
        GENERATE IMAGE
     ======================================================= */
 
@@ -79,9 +104,7 @@ async generate(prompt){
             this.config.endpoint,
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({ prompt })
             }
         );
@@ -144,7 +167,7 @@ async checkStatus(id){
 
         const response = await fetch(
             `${this.config.endpoint}/${id}`,
-            { method: "GET" }
+            { method: "GET", headers: this.getAuthHeaders() }
         );
 
         return await response.json();

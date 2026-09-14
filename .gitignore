@@ -5,3 +5,8 @@ server/.env
 
 node_modules/
 .DS_Store
+
+memory.json
+memory/*.json
+server/memory.json
+backups/

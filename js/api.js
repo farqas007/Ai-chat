@@ -72,6 +72,31 @@ export class API {
 
 
     /* =======================================================
+       AUTH HEADERS (optional bearer token for production)
+    ======================================================= */
+
+
+    getAuthHeaders(){
+
+        const headers = {
+            "Content-Type": "application/json"
+        };
+
+        const token =
+            window.AI_CHAT_TOKEN ||
+            localStorage.getItem("ai_chat_token") ||
+            "";
+
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        return headers;
+
+    }
+
+
+    /* =======================================================
        SEND MESSAGE
     ======================================================= */
 async sendMessage(message, history = []) {
@@ -90,9 +115,7 @@ async sendMessage(message, history = []) {
             this.config.endpoint,
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     message,
                     history
@@ -258,9 +281,7 @@ async streamMessage(message, history = []){
             this.config.endpoint,
             {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     message,
                     history

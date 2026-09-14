@@ -1,9 +1,0 @@
-{
-  "project": "Ai-chat",
-  "features": [
-    "voice",
-    "memory",
-    "code editor"
-  ],
-  "language": "Urdu"
-}

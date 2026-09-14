@@ -24,6 +24,57 @@ export class FileAgent {
     }
 
 
+    // Resolves a user-supplied path inside this.root, or returns null when
+    // the path escapes the sandbox (absolute paths, "..", NUL bytes, etc).
+    resolveInside(file) {
+
+        if (
+            typeof file !== "string" ||
+            file.length === 0 ||
+            file.includes("\0")
+        ) {
+
+            return null;
+
+        }
+
+        try {
+
+            const fullPath =
+                path.resolve(
+                    this.root,
+                    file
+                );
+
+            const relative =
+                path.relative(
+                    path.resolve(this.root),
+                    fullPath
+                );
+
+            if (
+                relative === "" ||
+                relative.startsWith("..") ||
+                path.isAbsolute(relative)
+            ) {
+
+                return null;
+
+            }
+
+            return fullPath;
+
+        }
+
+        catch {
+
+            return null;
+
+        }
+
+    }
+
+
     execute(action) {
 
         console.log(
@@ -34,25 +85,20 @@ export class FileAgent {
 
         if (action.action === "create") {
 
-            let fileName = action.file;
+            const filePath =
+                this.resolveInside(action.file);
 
+            if (!filePath) {
 
-            if (fileName.startsWith("generated-project")) {
+                return {
 
-                fileName =
-                    fileName.replace(
-                        "generated-project/",
-                        ""
-                    );
+                    success: false,
+
+                    error: "Invalid file path"
+
+                };
 
             }
-
-
-            const filePath =
-                path.join(
-                    this.root,
-                    fileName
-                );
 
 
             const folder =
@@ -111,10 +157,13 @@ export class FileAgent {
     read(file) {
 
         const fullPath =
-            path.join(
-                this.root,
-                file
-            );
+            this.resolveInside(file);
+
+        if (!fullPath) {
+
+            return null;
+
+        }
 
 
         console.log(
@@ -123,14 +172,23 @@ export class FileAgent {
         );
 
 
-        const content =
-            fs.readFileSync(
-                fullPath,
-                "utf8"
-            );
+        try {
 
+            const content =
+                fs.readFileSync(
+                    fullPath,
+                    "utf8"
+                );
 
-        return content;
+            return content;
+
+        }
+
+        catch {
+
+            return null;
+
+        }
 
     }
 

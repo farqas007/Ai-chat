@@ -8,6 +8,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { CodeAgent } from "../agent/codeAgent.js";
 
@@ -27,22 +28,159 @@ const PORT = process.env.PORT || 3000;
 const codex = new CodeAgent();
 
 /* ===========================================================
+   AUTH & CORS CONFIG
+=========================================================== */
+
+const API_TOKEN = process.env.SERVER_API_TOKEN || "";
+const NODE_ENV = process.env.NODE_ENV || "development";
+
+// Development mode (no token set, non-production) keeps local dev working.
+const DEV_NO_AUTH = !API_TOKEN && NODE_ENV !== "production";
+
+// Comma-separated allowlist, e.g. CORS_ORIGIN=https://app.example.com,https://dev.example.com
+// Empty => same-origin requests only (no cross-origin website can call the API).
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+/* ===========================================================
    MIDDLEWARE
 =========================================================== */
 
+app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
+        "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    );
+    next();
+});
+
 app.use(cors({
-    origin: "*",
+    origin: (origin, callback) => {
+        if (!origin) {
+            return callback(null, false);
+        }
+        if (ALLOWED_ORIGINS.length === 0) {
+            return callback(null, false);
+        }
+        return callback(null, ALLOWED_ORIGINS.includes(origin));
+    },
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"]
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "1mb" }));
 
 /* ===========================================================
-   STATIC FILES
+   RATE LIMITING (in-memory, per IP)
 =========================================================== */
 
-app.use(express.static(path.join(__dirname, "..")));
+const rateBuckets = new Map();
+
+function rateLimit({ windowMs, max }) {
+    return (req, res, next) => {
+        const key = `${req.ip || "unknown"}:${req.path}`;
+        const now = Date.now();
+        const windowStart = now - windowMs;
+
+        if (rateBuckets.size > 50000) {
+            rateBuckets.clear();
+        }
+
+        const recent = (rateBuckets.get(key) || [])
+            .filter(timestamp => timestamp > windowStart);
+
+        if (recent.length >= max) {
+            res.setHeader("Retry-After", Math.ceil(windowMs / 1000));
+            return res.status(429).json({
+                success: false,
+                error: "Too many requests. Please try again shortly."
+            });
+        }
+
+        recent.push(now);
+        rateBuckets.set(key, recent);
+        next();
+    };
+}
+
+/* ===========================================================
+   AUTH MIDDLEWARE
+=========================================================== */
+
+function safeEqual(a, b) {
+    const bufferA = Buffer.from(a);
+    const bufferB = Buffer.from(b);
+    if (bufferA.length !== bufferB.length) {
+        return false;
+    }
+    return crypto.timingSafeEqual(bufferA, bufferB);
+}
+
+function requireAuth(req, res, next) {
+    if (DEV_NO_AUTH) {
+        return next();
+    }
+    if (!API_TOKEN) {
+        return res.status(503).json({
+            success: false,
+            error: "SERVER_API_TOKEN not configured on server."
+        });
+    }
+
+    const header = req.headers.authorization || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+
+    if (!token || !safeEqual(token, API_TOKEN)) {
+        return res.status(401).json({
+            success: false,
+            error: "Unauthorized"
+        });
+    }
+
+    next();
+}
+
+/* ===========================================================
+   PATH GUARDS
+=========================================================== */
+
+// Block sensitive/private runtime files from being served or read.
+function isSensitivePath(filePath) {
+    const normalized = path.normalize(filePath)
+        .replace(/\\/g, "/")
+        .toLowerCase();
+
+    if (normalized === "." || normalized === "") {
+        return true;
+    }
+    if (normalized.includes(".env")) {
+        return true;
+    }
+    if (normalized.endsWith(".bak")) {
+        return true;
+    }
+    if (normalized === "server" || normalized.startsWith("server/")) {
+        return true;
+    }
+    if (normalized === "memory" || normalized.startsWith("memory/")) {
+        return true;
+    }
+    if (normalized === "backups" || normalized.startsWith("backups/")) {
+        return true;
+    }
+    if (normalized === "bugs.json" || normalized === "memory.json") {
+        return true;
+    }
+
+    return false;
+}
 
 /* ===========================================================
    CONFIG
@@ -66,7 +204,7 @@ if (!OPENROUTER_KEY) {
    HEALTH CHECK
 =========================================================== */
 
-app.get("/", (req, res) => {
+app.get("/api/health", (req, res) => {
     res.json({
         success: true,
         server: "AI Chat Backend",
@@ -132,7 +270,10 @@ FORMATTING RULES:
 - For code, use <pre class="code-block"><code>language code here</code></pre>.
 `;
 
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 20 }),
+    async (req, res) => {
     if (!OPENROUTER_KEY) {
         return res.status(503).json({
             success: false,
@@ -169,7 +310,8 @@ app.post("/api/chat", async (req, res) => {
                     messages,
                     temperature: 0.7,
                     max_tokens: 2048
-                })
+                }),
+                signal: AbortSignal.timeout(60000)
             }
         );
 
@@ -190,6 +332,12 @@ app.post("/api/chat", async (req, res) => {
 
     } catch (error) {
         console.error("Chat Error:", error.message);
+        if (error.name === "TimeoutError" || error.name === "AbortError") {
+            return res.status(504).json({
+                success: false,
+                error: "Upstream timed out. Please try again."
+            });
+        }
         return res.status(500).json({
             success: false,
             error: error.message
@@ -201,7 +349,10 @@ app.post("/api/chat", async (req, res) => {
    CODE AGENT
 =========================================================== */
 
-app.post("/codex", async (req, res) => {
+app.post("/codex",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 5 }),
+    async (req, res) => {
     try {
         const { task } = req.body;
 
@@ -225,7 +376,10 @@ app.post("/codex", async (req, res) => {
     }
 });
 
-app.get("/file", async (req, res) => {
+app.get("/file",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 60 }),
+    async (req, res) => {
     try {
         const filePath = req.query.path;
 
@@ -244,7 +398,21 @@ app.get("/file", async (req, res) => {
             });
         }
 
+        if (isSensitivePath(normalized)) {
+            return res.status(403).json({
+                success: false,
+                error: "Access denied"
+            });
+        }
+
         const content = codex.files.read(filePath);
+
+        if (content === null || content === undefined) {
+            return res.status(404).json({
+                success: false,
+                error: "File not found"
+            });
+        }
 
         res.json({ success: true, path: filePath, content });
 
@@ -256,7 +424,10 @@ app.get("/file", async (req, res) => {
     }
 });
 
-app.post("/codex/analyze-file", async (req, res) => {
+app.post("/codex/analyze-file",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 30 }),
+    async (req, res) => {
     try {
         const { file } = req.body;
 
@@ -264,6 +435,21 @@ app.post("/codex/analyze-file", async (req, res) => {
             return res.status(400).json({
                 success: false,
                 error: "File path required"
+            });
+        }
+
+        const normalized = path.normalize(file);
+        if (normalized.startsWith("..") || path.isAbsolute(normalized)) {
+            return res.status(403).json({
+                success: false,
+                error: "Access denied"
+            });
+        }
+
+        if (isSensitivePath(normalized)) {
+            return res.status(403).json({
+                success: false,
+                error: "Access denied"
             });
         }
 
@@ -290,7 +476,10 @@ app.post("/codex/analyze-file", async (req, res) => {
    GENERATE IMAGE
 =========================================================== */
 
-app.post("/generate-image", async (req, res) => {
+app.post("/generate-image",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 10 }),
+    async (req, res) => {
     if (!REPLICATE_KEY) {
         return res.status(503).json({
             success: false,
@@ -316,7 +505,8 @@ app.post("/generate-image", async (req, res) => {
                     "Authorization": `Token ${REPLICATE_KEY}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ input: { prompt } })
+                body: JSON.stringify({ input: { prompt } }),
+                signal: AbortSignal.timeout(30000)
             }
         );
 
@@ -336,6 +526,12 @@ app.post("/generate-image", async (req, res) => {
         });
 
     } catch (error) {
+        if (error.name === "TimeoutError" || error.name === "AbortError") {
+            return res.status(504).json({
+                success: false,
+                error: "Upstream timed out. Please try again."
+            });
+        }
         return res.status(500).json({
             success: false,
             error: error.message
@@ -343,7 +539,10 @@ app.post("/generate-image", async (req, res) => {
     }
 });
 
-app.get("/generate-image/:id", async (req, res) => {
+app.get("/generate-image/:id",
+    requireAuth,
+    rateLimit({ windowMs: 60 * 1000, max: 60 }),
+    async (req, res) => {
     if (!REPLICATE_KEY) {
         return res.status(503).json({
             success: false,
@@ -355,7 +554,8 @@ app.get("/generate-image/:id", async (req, res) => {
         const response = await fetch(
             `${REPLICATE_API}/predictions/${req.params.id}`,
             {
-                headers: { "Authorization": `Token ${REPLICATE_KEY}` }
+                headers: { "Authorization": `Token ${REPLICATE_KEY}` },
+                signal: AbortSignal.timeout(30000)
             }
         );
 
@@ -371,12 +571,69 @@ app.get("/generate-image/:id", async (req, res) => {
         return res.json(data);
 
     } catch (error) {
+        if (error.name === "TimeoutError" || error.name === "AbortError") {
+            return res.status(504).json({
+                success: false,
+                error: "Upstream timed out. Please try again."
+            });
+        }
         return res.status(500).json({
             success: false,
             error: error.message
         });
     }
 });
+
+/* ===========================================================
+   STATIC FILES (allowlist, at the end so API routes win)
+=========================================================== */
+
+// Only serves GET/HEAD for the public web app (index.html, css/, js/).
+app.use((req, res, next) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+        return res.status(404).json({
+            success: false,
+            error: "Not found"
+        });
+    }
+
+    let decodedPath;
+    try {
+        decodedPath = decodeURIComponent(req.path);
+    } catch {
+        return res.status(400).json({
+            success: false,
+            error: "Bad request"
+        });
+    }
+
+    if (decodedPath.includes("..")) {
+        return res.status(403).json({
+            success: false,
+            error: "Access denied"
+        });
+    }
+
+    const allowed =
+        decodedPath === "/" ||
+        decodedPath === "/index.html" ||
+        decodedPath.startsWith("/css/") ||
+        decodedPath.startsWith("/js/");
+
+    if (!allowed) {
+        return res.status(404).json({
+            success: false,
+            error: "Not found"
+        });
+    }
+
+    next();
+});
+
+app.use(express.static(path.join(__dirname, ".."), {
+    dotfiles: "deny",
+    index: "index.html"
+}));
 
 /* ===========================================================
    START SERVER

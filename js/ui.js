@@ -903,7 +903,7 @@ if(this.elements.imageButton){
 
         welcome.innerHTML = `
 
-            <h2>Hello 👋</h2>
+            <h2>Hello</h2>
 
             <p>How can I help you today?</p>
 
@@ -1057,15 +1057,15 @@ if(this.elements.imageButton){
     /* =======================================================
    SHOW GENERATED IMAGE
 ======================================================= */
-
-
 showGeneratedImage(image){
 
 
    const container =
 
     document.querySelector(
+
         "#chatContainer"
+
     );
 
 
@@ -1085,39 +1085,121 @@ showGeneratedImage(image){
     );
 
 
+
     wrapper.className =
 
         "message assistant-message";
 
 
 
-    wrapper.innerHTML = `
+    const content = document.createElement(
 
+        "div"
 
-        <div class="message-content">
-
-
-            <p>
-
-            🖼 Generated Image
-
-            </p>
+    );
 
 
 
-            <img
+    content.className =
 
-            src="${image.url || ''}"
-
-            alt="${image.prompt}"
-
-            class="generated-image">
+        "message-content";
 
 
-        </div>
+
+    const label = document.createElement(
+
+        "p"
+
+    );
 
 
-    `;
+
+    label.innerHTML =
+        '<svg class="icon-btn" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+
+
+
+    label.appendChild(
+
+        document.createTextNode(
+
+            " Generated Image"
+
+        )
+
+    );
+
+
+
+    content.appendChild(label);
+
+
+
+    const src =
+
+        typeof image?.url === "string" ?
+
+            image.url :
+
+            "";
+
+
+
+    if (src && /^https?:\/\//i.test(src)) {
+
+
+
+        const img = document.createElement(
+
+            "img"
+
+        );
+
+
+
+        img.src = src;
+
+
+
+        img.setAttribute(
+
+            "alt",
+
+            typeof image?.prompt === "string" ?
+
+                image.prompt :
+
+                "Generated image"
+
+        );
+
+
+
+        img.className =
+
+            "generated-image";
+
+
+
+        img.setAttribute(
+
+            "referrerpolicy",
+
+            "no-referrer"
+
+        );
+
+
+
+        content.appendChild(img);
+
+
+
+    }
+
+
+
+    wrapper.appendChild(content);
 
 
 
@@ -1126,7 +1208,6 @@ showGeneratedImage(image){
         wrapper
 
     );
-
 
 }
 
