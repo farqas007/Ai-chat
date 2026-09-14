@@ -7,6 +7,7 @@
 
 import { Markdown } from "./markdown.js";
 import Events from "./events.js";
+import { mergeTranscript } from "./voice-input.js";
 
 
 
@@ -400,7 +401,9 @@ if(this.elements.imageButton){
 
                 ()=>{
 
-                    Events.emit("voice:toggle");
+
+                    Events.emit("voice-input:toggle");
+
 
                 }
 
@@ -575,6 +578,121 @@ if(this.elements.imageButton){
     "chat:send",
     text
 );
+
+    }
+
+    /* =======================================================
+       VOICE INPUT SUPPORT
+       Hides/disables the microphone when SpeechRecognition
+       is not available in the browser.
+    ======================================================= */
+
+
+    setVoiceInputSupported(supported){
+
+        const button =
+            this.elements.voiceInputBtn;
+
+        if(!button){
+
+            return;
+
+        }
+
+        button.classList.toggle(
+            "voice-unsupported",
+            !supported
+        );
+
+        button.disabled = !supported;
+
+        button.setAttribute(
+            "aria-disabled",
+            supported ? "false" : "true"
+        );
+
+        button.setAttribute(
+            "aria-hidden",
+            supported ? "false" : "true"
+        );
+
+    }
+
+
+    /* =======================================================
+       VOICE INPUT LISTENING STATE
+    ======================================================= */
+
+
+    setVoiceInputListening(listening){
+
+        const button =
+            this.elements.voiceInputBtn;
+
+        if(!button){
+
+            return;
+
+        }
+
+        button.classList.toggle(
+            "listening",
+            !!listening
+        );
+
+        button.setAttribute(
+            "aria-pressed",
+            listening ? "true" : "false"
+        );
+
+        if(listening){
+
+            button.title = "Stop voice input";
+
+            button.setAttribute(
+                "aria-label",
+                "Stop voice input"
+            );
+
+        } else {
+
+            button.title = "Voice input";
+
+            button.setAttribute(
+                "aria-label",
+                "Voice input"
+            );
+
+        }
+
+    }
+
+
+    /* =======================================================
+       INSERT VOICE TEXT
+       Places a transcript into the composer without touching
+       HTML and without deleting existing typed text.
+    ======================================================= */
+
+
+    insertVoiceText(text){
+
+        const input =
+            this.elements.input;
+
+        if(!input){
+
+            return;
+
+        }
+
+        input.value =
+            mergeTranscript(
+                input.value,
+                text
+            );
+
+        input.focus();
 
     }
 

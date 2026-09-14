@@ -25,7 +25,7 @@ export class VideoGenerator {
 
         this.config = {
             provider: "replicate",
-            endpoint: "http://localhost:3000/generate-video",
+            endpoint: "/generate-video",
             model: "stability-ai/stable-video-diffusion"
         };
 

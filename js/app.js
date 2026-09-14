@@ -29,6 +29,8 @@ import { Voice } from "./voice.js";
 
 import { VoiceUI } from "./voiceUI.js";
 
+import { VoiceInput } from "./voice-input.js";
+
 
 
 /* ===========================================================
@@ -59,6 +61,9 @@ constructor(){
 
     // Voice pehle create karo
     this.voice = new Voice();
+
+    // Voice input (composer microphone)
+    this.voiceInput = new VoiceInput();
 
     // Ab VoiceUI ko config do
     this.voiceUI = new VoiceUI(
@@ -188,6 +193,16 @@ if (this.chat.state.currentChatId) {
 
 
             this.voice.initialize();
+
+            // Voice input uses the saved TTS language when present,
+            // falling back to navigator.language inside VoiceInput.
+            this.voiceInput.initialize({
+                language: this.voice?.settings?.language
+            });
+
+            this.ui.setVoiceInputSupported(
+                this.voiceInput.supported
+            );
 
             console.log(
     "Image Generator Initialized"
@@ -554,19 +569,85 @@ this.chat.endStreaming(
 
         Events.on(
 
-            "voice:text",
+            "voice-input:toggle",
+
+            ()=>{
+
+                if (!this.voiceInput) {
+
+                    return;
+
+                }
+
+                if (this.voiceInput.isListening) {
+
+                    this.voiceInput.stop();
+
+                } else {
+
+                    this.voiceInput.start();
+
+                }
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "voice-input:start",
+
+            ()=>{
+
+                this.ui.setVoiceInputListening(true);
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "voice-input:end",
+
+            ()=>{
+
+                this.ui.setVoiceInputListening(false);
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "voice-input:error",
+
+            message=>{
+
+                this.ui.setVoiceInputListening(false);
+
+                if (this.ui.showError) {
+
+                    this.ui.showError(message);
+
+                }
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "voice-input:text",
 
             text=>{
 
-
-                Events.emit(
-
-                    "chat:send",
-
-                    text
-
-                );
-
+                // Transcript goes into the composer only. The user
+                // sends it through the normal send flow.
+                this.ui.insertVoiceText(text);
 
             }
 
@@ -1081,6 +1162,12 @@ Events.on(
 
 
         this.voice.destroy();
+
+        if (this.voiceInput) {
+
+            this.voiceInput.destroy();
+
+        }
 
 
         this.codeblock.destroy();

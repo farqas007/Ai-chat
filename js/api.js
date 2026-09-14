@@ -20,7 +20,7 @@ export class API {
 
         this.config = {
             provider: "openrouter",
-            endpoint: "http://localhost:3000/api/chat",
+            endpoint: "/api/chat",
             model: "openai/gpt-4o-mini",
             temperature: 0.7,
             maxTokens: 2048

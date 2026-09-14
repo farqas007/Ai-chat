@@ -15,6 +15,7 @@ import { createRequireAuth } from "./authMiddleware.js";
 import { isPublicPathname } from "./staticGuard.js";
 import { handleCodexRequest } from "./codexHandler.js";
 import { isSensitivePath } from "./pathGuard.js";
+import { resolveServerConfig } from "./serverConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +28,11 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
-const PORT = process.env.PORT || 3000;
+// PORT from the environment (default 3000, "0" allowed for ephemeral
+// binds) and HOST defaulting to 0.0.0.0 so externally reachable
+// hosting platforms work without extra flags.
+const { port: PORT, host: HOST, allowedOrigins: ALLOWED_ORIGINS } =
+    resolveServerConfig(process.env);
 
 const codex = new CodeAgent();
 
@@ -59,10 +64,7 @@ if (AUTH_POLICY.isProduction && !API_TOKEN) {
 
 // Comma-separated allowlist, e.g. CORS_ORIGIN=https://app.example.com,https://dev.example.com
 // Empty => same-origin requests only (no cross-origin website can call the API).
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGIN || "")
-    .split(",")
-    .map(origin => origin.trim())
-    .filter(Boolean);
+// Resolved from the environment in serverConfig.js.
 
 /* ===========================================================
    MIDDLEWARE
@@ -574,6 +576,28 @@ app.use(express.static(path.join(__dirname, ".."), {
    START SERVER
 =========================================================== */
 
-app.listen(PORT, () => {
-    console.log(`AI Chat Server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, HOST, () => {
+
+    const address = server.address();
+
+    const boundPort =
+        address && typeof address === "object"
+            ? address.port
+            : PORT;
+
+    console.log(
+        `AI Chat Server running on http://${HOST}:${boundPort}`
+    );
+
+});
+
+server.on("error", error => {
+
+    console.error(
+        "AI Chat Server failed to start:",
+        error.message
+    );
+
+    process.exit(1);
+
 });

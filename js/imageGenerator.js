@@ -20,7 +20,7 @@ export class ImageGenerator {
 
         this.config = {
             provider: "replicate",
-            endpoint: "http://localhost:3000/generate-image",
+            endpoint: "/generate-image",
             model: "black-forest-labs/flux-schnell"
         };
 
