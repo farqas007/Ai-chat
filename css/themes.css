@@ -1,0 +1,185 @@
+/* ===========================================================
+   AI CHAT
+   File : themes.css
+   Description : Global Theme Variables
+=========================================================== */
+
+
+/* ===========================================================
+   DARK THEME (DEFAULT)
+=========================================================== */
+
+:root{
+
+    /* Background */
+
+    --bg-primary:#0f172a;
+    --bg-secondary:#111827;
+    --bg-tertiary:#1e293b;
+    --bg-hover:#263449;
+
+    /* Chat */
+
+    --user-message:#2563eb;
+    --assistant-message:#1f2937;
+
+    /* Text */
+
+    --text-primary:#ffffff;
+    --text-secondary:#cbd5e1;
+    --text-muted:#94a3b8;
+
+    /* Borders */
+
+    --border-color:#2d3748;
+
+    /* Accent */
+
+    --accent:#3b82f6;
+    --accent-hover:#2563eb;
+
+    /* Status */
+
+    --success:#10b981;
+    --warning:#f59e0b;
+    --danger:#ef4444;
+
+    /* Shadows */
+
+    --shadow-small:0 2px 8px rgba(0,0,0,.25);
+    --shadow-medium:0 6px 18px rgba(0,0,0,.30);
+    --shadow-large:0 12px 32px rgba(0,0,0,.40);
+
+    /* Radius */
+
+    --radius-small:8px;
+    --radius-medium:14px;
+    --radius-large:20px;
+    --radius-round:999px;
+
+    /* Transition */
+
+    --transition-fast:.15s ease;
+    --transition:.25s ease;
+    --transition-slow:.4s ease;
+
+    /* Sidebar */
+
+    --sidebar-width:280px;
+
+    /* Header */
+
+    --header-height:70px;
+
+    /* Input */
+
+    --input-height:58px;
+
+    /* Layout */
+
+    --max-chat-width:900px;
+
+    /* Font */
+
+    --font-family:
+        Inter,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+
+}
+
+
+/* ===========================================================
+   LIGHT THEME
+=========================================================== */
+
+body.light{
+
+    --bg-primary:#f4f7fb;
+    --bg-secondary:#ffffff;
+    --bg-tertiary:#eef2f7;
+    --bg-hover:#e2e8f0;
+
+    --user-message:#2563eb;
+    --assistant-message:#ffffff;
+
+    --text-primary:#111827;
+    --text-secondary:#374151;
+    --text-muted:#6b7280;
+
+    --border-color:#d1d5db;
+
+    --accent:#2563eb;
+    --accent-hover:#1d4ed8;
+
+}
+
+
+/* ===========================================================
+   GLOBAL SCROLLBAR
+=========================================================== */
+
+*::-webkit-scrollbar{
+
+    width:10px;
+    height:10px;
+
+}
+
+*::-webkit-scrollbar-track{
+
+    background:var(--bg-secondary);
+
+}
+
+*::-webkit-scrollbar-thumb{
+
+    background:var(--bg-hover);
+    border-radius:999px;
+
+}
+
+*::-webkit-scrollbar-thumb:hover{
+
+    background:var(--accent);
+
+}
+
+
+/* ===========================================================
+   TEXT SELECTION
+=========================================================== */
+
+::selection{
+
+    background:var(--accent);
+    color:#ffffff;
+
+}
+
+
+/* ===========================================================
+   FOCUS
+=========================================================== */
+
+:focus-visible{
+
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+
+}
+
+
+/* ===========================================================
+   DISABLED
+=========================================================== */
+
+:disabled{
+
+    opacity:.6;
+    cursor:not-allowed;
+
+}

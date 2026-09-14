@@ -1,0 +1,504 @@
+/* ===========================================================
+   AI CHAT
+   File : sidebar.css
+   Description : Sidebar Styles
+=========================================================== */
+
+
+/* ===========================================================
+   SIDEBAR
+=========================================================== */
+
+#sidebar{
+
+    width:var(--sidebar-width);
+    height:100%;
+
+    display:flex;
+    flex-direction:column;
+
+    background:var(--bg-secondary);
+
+    border-right:1px solid var(--border-color);
+
+    transition:var(--transition);
+
+    overflow:hidden;
+
+}
+
+
+/* ===========================================================
+   SIDEBAR TOP
+=========================================================== */
+
+.sidebar-top{
+
+    padding:20px;
+
+    border-bottom:1px solid var(--border-color);
+
+}
+
+
+/* ===========================================================
+   NEW CHAT BUTTON
+=========================================================== */
+
+#newChatBtn{
+
+    width:100%;
+    height:48px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+
+    border-radius:var(--radius-medium);
+
+    background:var(--accent);
+
+    color:#ffffff;
+
+    font-weight:600;
+
+    transition:var(--transition);
+
+}
+
+
+#newChatBtn:hover{
+
+    background:var(--accent-hover);
+
+}
+
+/* ===========================================================
+   SEARCH (ChatGPT Style)
+=========================================================== */
+
+.sidebar-search{
+
+    padding:14px 16px;
+
+    border-bottom:1px solid var(--border-color);
+
+}
+
+
+#searchChats{
+
+    width:100%;
+
+    height:48px;
+
+    padding:0 18px 0 45px;
+
+    border-radius:14px;
+
+    background:var(--bg-tertiary);
+
+    color:var(--text-primary);
+
+    border:1px solid transparent;
+
+    font-size:15px;
+
+    outline:none;
+
+    transition:all 0.2s ease;
+
+}
+
+
+/* Search focus */
+
+#searchChats:focus{
+
+    border-color:var(--accent);
+
+    background:var(--bg-secondary);
+
+}
+
+
+/* Placeholder */
+
+#searchChats::placeholder{
+
+    color:var(--text-muted);
+
+}
+
+
+/* Hover */
+
+#searchChats:hover{
+
+    background:var(--bg-hover);
+
+}
+/* ===========================================================
+   CHAT HISTORY
+=========================================================== */
+
+#conversationList{
+
+    flex:1;
+
+    overflow-y:auto;
+
+    padding:12px;
+
+}
+
+
+/* ===========================================================
+   CHAT ITEM
+=========================================================== */
+
+.chat-item{
+
+    width:100%;
+
+    display:flex;
+    align-items:center;
+    gap:12px;
+
+    padding:14px;
+
+    margin-bottom:10px;
+
+    border-radius:var(--radius-medium);
+
+    background:transparent;
+
+    color:var(--text-secondary);
+
+    text-align:left;
+
+    transition:var(--transition);
+
+    cursor:pointer;
+
+}
+
+
+.chat-item:hover{
+
+    background:var(--bg-hover);
+
+    color:var(--text-primary);
+
+}
+
+
+.chat-item.active{
+
+    background:var(--bg-tertiary);
+
+    color:var(--text-primary);
+
+    border:1px solid var(--border-color);
+
+}
+
+
+/* ===========================================================
+   CHAT TITLE
+=========================================================== */
+
+.chat-item span{
+
+    flex:1;
+
+    white-space:nowrap;
+
+    overflow:hidden;
+
+    text-overflow:ellipsis;
+
+}
+
+
+/* ===========================================================
+   SIDEBAR BOTTOM
+=========================================================== */
+
+.sidebar-bottom{
+
+    padding:20px;
+
+    border-top:1px solid var(--border-color);
+
+}
+
+
+/* ===========================================================
+   SETTINGS BUTTON
+=========================================================== */
+
+#settingsBtn{
+
+    width:100%;
+    height:46px;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+
+    border-radius:var(--radius-medium);
+
+    background:var(--bg-tertiary);
+
+    color:var(--text-primary);
+
+    transition:var(--transition);
+
+}
+
+
+#settingsBtn:hover{
+
+    background:var(--bg-hover);
+
+}
+
+
+/* ===========================================================
+   SCROLLBAR
+=========================================================== */
+
+#conversationList::-webkit-scrollbar{
+
+    width:8px;
+
+}
+
+
+#conversationList::-webkit-scrollbar-thumb{
+
+    background:var(--bg-hover);
+
+    border-radius:999px;
+
+}
+
+
+#conversationList::-webkit-scrollbar-thumb:hover{
+
+    background:var(--accent);
+
+}
+
+
+/* ===========================================================
+   COLLAPSED SIDEBAR
+=========================================================== */
+
+#sidebar.collapsed{
+
+    width:72px;
+
+}
+
+
+#sidebar.collapsed .sidebar-search{
+
+    display:none;
+
+}
+
+
+#sidebar.collapsed #newChatBtn{
+
+    width:48px;
+    height:48px;
+
+    margin:auto;
+
+    border-radius:50%;
+
+    font-size:1.4rem;
+
+}
+
+
+#sidebar.collapsed .chat-item{
+
+    justify-content:center;
+
+    padding:12px;
+
+}
+
+
+#sidebar.collapsed .chat-item span{
+
+    display:none;
+
+}
+
+
+#sidebar.collapsed #settingsBtn{
+
+    width:48px;
+    height:48px;
+
+    margin:auto;
+
+    border-radius:50%;
+
+}
+/* ===========================================================
+   CHATGPT STYLE SEARCH BOX
+=========================================================== */
+
+
+.search-box{
+
+    position:relative;
+
+    width:100%;
+
+}
+
+
+.search-icon{
+
+    position:absolute;
+
+    left:16px;
+
+    top:50%;
+
+    transform:translateY(-50%);
+
+    font-size:15px;
+
+    opacity:0.7;
+
+    pointer-events:none;
+
+}
+
+
+
+#searchChats{
+
+    width:100%;
+
+    height:46px;
+
+    padding-left:45px;
+
+    padding-right:15px;
+
+    border-radius:12px;
+
+    border:1px solid var(--border-color);
+
+    background:var(--bg-tertiary);
+
+    color:var(--text-primary);
+
+    font-size:15px;
+
+    outline:none;
+
+    transition:0.2s ease;
+
+}
+
+
+
+#searchChats:hover{
+
+    background:var(--bg-hover);
+
+}
+
+
+
+#searchChats:focus{
+
+    border-color:var(--accent);
+
+    background:var(--bg-secondary);
+
+}
+
+/* Chat Groups */
+
+.chat-group-title{
+
+
+    font-size:12px;
+
+    color:var(--text-muted);
+
+    padding:12px 14px 6px;
+
+    text-transform:uppercase;
+
+    font-weight:600;
+
+
+}
+/* ===========================================================
+   CHAT ACTIONS
+=========================================================== */
+
+.chat-actions{
+
+    display:flex;
+
+    gap:6px;
+
+    opacity:0;
+
+    transition:opacity var(--transition-fast);
+
+}
+
+.chat-item:hover .chat-actions{
+
+    opacity:1;
+
+}
+
+.chat-actions button{
+
+    width:26px;
+
+    height:26px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    border:none;
+
+    border-radius:6px;
+
+    background:var(--bg-tertiary);
+
+    color:var(--text-secondary);
+
+    font-size:.8rem;
+
+    cursor:pointer;
+
+}
+
+.chat-actions button:hover{
+
+    background:var(--bg-hover);
+
+    color:var(--text-primary);
+
+}

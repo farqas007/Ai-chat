@@ -1,0 +1,308 @@
+/* ===========================================================
+   AI CHAT
+   File : responsive.css
+   Description : Responsive Layout
+=========================================================== */
+
+
+/* ===========================================================
+   LARGE LAPTOPS
+=========================================================== */
+
+@media (max-width:1400px){
+
+    :root{
+
+        --sidebar-width:260px;
+
+        --max-chat-width:850px;
+
+    }
+
+}
+
+
+/* ===========================================================
+   LAPTOP
+=========================================================== */
+
+@media (max-width:1200px){
+
+    :root{
+
+        --sidebar-width:240px;
+
+        --max-chat-width:760px;
+
+    }
+
+}
+
+
+/* ===========================================================
+   TABLET
+=========================================================== */
+
+@media (max-width:992px){
+
+    :root{
+
+        --sidebar-width:230px;
+
+    }
+
+    #chatContainer{
+
+        padding:20px;
+
+    }
+
+    .message-content{
+
+        max-width:85%;
+
+    }
+
+}
+
+
+/* ===========================================================
+   MOBILE
+=========================================================== */
+
+@media (max-width:768px){
+
+    #sidebar{
+
+        position:fixed;
+
+        top:0;
+        left:0;
+
+        width:280px;
+        height:100vh;
+
+        z-index:1000;
+
+        transform:translateX(-100%);
+
+        transition:transform var(--transition);
+
+    }
+
+    #sidebar.active{
+
+        transform:translateX(0);
+
+    }
+
+    #main{
+
+        width:100%;
+
+    }
+
+    #topbar{
+
+        padding:0 15px;
+
+    }
+
+    #chatContainer{
+
+        padding:15px;
+
+    }
+
+    .message-content{
+
+        max-width:90%;
+
+        font-size:.95rem;
+
+    }
+
+    #inputArea{
+
+        padding:12px;
+
+        gap:10px;
+
+    }
+
+    #messageInput{
+
+        min-height:46px;
+
+        font-size:.95rem;
+
+    }
+
+    #imageBtn,
+    #voiceToggle,
+    #voiceInputBtn,
+    #sendBtn,
+    #menuBtn,
+    #themeToggle{
+
+        width:40px;
+        height:40px;
+
+    }
+
+}
+
+
+/* ===========================================================
+   SMALL MOBILE
+=========================================================== */
+
+@media (max-width:576px){
+
+    #topbar h1{
+
+        font-size:1rem;
+
+    }
+
+    #chatContainer{
+
+        padding:12px;
+
+    }
+
+    .message-content{
+
+        max-width:95%;
+
+        padding:14px;
+
+        font-size:.92rem;
+
+    }
+
+    #inputArea{
+
+        padding:10px;
+
+    }
+
+    #messageInput{
+
+        padding:12px;
+
+    }
+
+}
+
+
+/* ===========================================================
+   EXTRA SMALL DEVICES
+=========================================================== */
+
+@media (max-width:400px){
+
+    #topbar{
+
+        height:60px;
+
+    }
+
+    #topbar h1{
+
+        font-size:.9rem;
+
+    }
+
+    #imageBtn,
+    #voiceToggle,
+    #voiceInputBtn,
+    #sendBtn,
+    #menuBtn,
+    #themeToggle{
+
+        width:36px;
+        height:36px;
+
+        font-size:.9rem;
+
+    }
+
+    #messageInput{
+
+        min-height:42px;
+
+        font-size:.9rem;
+
+    }
+
+}
+
+
+/* ===========================================================
+   SHORT SCREENS
+=========================================================== */
+
+@media (max-height:600px){
+
+    #topbar{
+
+        height:60px;
+
+    }
+
+    #inputArea{
+
+        padding:10px 15px;
+
+    }
+
+    #chatContainer{
+
+        padding:15px;
+
+    }
+
+}
+
+
+/* ===========================================================
+   LANDSCAPE MOBILE
+=========================================================== */
+
+@media (max-height:500px) and (orientation:landscape){
+
+    #sidebar{
+
+        overflow-y:auto;
+
+    }
+
+    #chatContainer{
+
+        padding:12px;
+
+    }
+
+    .message-content{
+
+        max-width:80%;
+
+    }
+
+}
+
+
+/* ===========================================================
+   TOUCH DEVICES
+=========================================================== */
+
+@media (hover:none){
+
+    button{
+
+        -webkit-tap-highlight-color:transparent;
+
+    }
+
+}
