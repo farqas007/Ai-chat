@@ -11,6 +11,8 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { CodeAgent } from "../agent/codeAgent.js";
+import { resolveAuthPolicy } from "./authPolicy.js";
+import { isPublicPathname } from "./staticGuard.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,11 +33,27 @@ const codex = new CodeAgent();
    AUTH & CORS CONFIG
 =========================================================== */
 
-const API_TOKEN = process.env.SERVER_API_TOKEN || "";
-const NODE_ENV = process.env.NODE_ENV || "development";
+// Authentication FAILS CLOSED: local "no token" mode requires an explicit
+// opt-in (ALLOW_NO_AUTH=true) and can never apply in production.
+const AUTH_POLICY = resolveAuthPolicy(process.env);
 
-// Development mode (no token set, non-production) keeps local dev working.
-const DEV_NO_AUTH = !API_TOKEN && NODE_ENV !== "production";
+const API_TOKEN = AUTH_POLICY.apiToken;
+
+const DEV_NO_AUTH = AUTH_POLICY.authDisabled;
+
+if (DEV_NO_AUTH) {
+    console.warn(
+        "AUTH: running in local development mode with authentication disabled " +
+        "(ALLOW_NO_AUTH=true). Do NOT use this in production."
+    );
+}
+
+if (AUTH_POLICY.isProduction && !API_TOKEN) {
+    console.error(
+        "SEC: NODE_ENV is production but SERVER_API_TOKEN is not set. " +
+        "Protected endpoints are disabled until a token is configured."
+    );
+}
 
 // Comma-separated allowlist, e.g. CORS_ORIGIN=https://app.example.com,https://dev.example.com
 // Empty => same-origin requests only (no cross-origin website can call the API).
@@ -130,7 +148,7 @@ function requireAuth(req, res, next) {
     if (!API_TOKEN) {
         return res.status(503).json({
             success: false,
-            error: "SERVER_API_TOKEN not configured on server."
+            error: "SERVER_API_TOKEN is not configured. Set SERVER_API_TOKEN in production, or set ALLOW_NO_AUTH=true for local development only."
         });
     }
 
@@ -597,30 +615,7 @@ app.use((req, res, next) => {
         });
     }
 
-    let decodedPath;
-    try {
-        decodedPath = decodeURIComponent(req.path);
-    } catch {
-        return res.status(400).json({
-            success: false,
-            error: "Bad request"
-        });
-    }
-
-    if (decodedPath.includes("..")) {
-        return res.status(403).json({
-            success: false,
-            error: "Access denied"
-        });
-    }
-
-    const allowed =
-        decodedPath === "/" ||
-        decodedPath === "/index.html" ||
-        decodedPath.startsWith("/css/") ||
-        decodedPath.startsWith("/js/");
-
-    if (!allowed) {
+    if (!isPublicPathname(req.path)) {
         return res.status(404).json({
             success: false,
             error: "Not found"

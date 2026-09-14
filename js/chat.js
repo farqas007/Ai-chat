@@ -425,9 +425,17 @@ getCurrentChat() {
    GET MESSAGES
 ======================================================= */
 
-getMessages() {
+getMessages(chatId = null) {
 
-    const chat = this.getCurrentChat();
+    const chat = chatId
+
+        ? this.state.chats.find(
+
+            item => item.id === chatId
+
+        ) || null
+
+        : this.getCurrentChat();
 
 
     if (!chat) {
@@ -450,12 +458,22 @@ addMessage(
 
     role,
 
-    content
+    content,
+
+    chatId = null
 
 ) {
 
 
-    const chat = this.getCurrentChat();
+    const chat = chatId
+
+        ? this.state.chats.find(
+
+            item => item.id === chatId
+
+        ) || null
+
+        : this.getCurrentChat();
 
 
     if (!chat) {
@@ -506,9 +524,13 @@ addMessage(
 
 
 
-    this.state.messages =
+    if (this.state.currentChatId === chat.id) {
 
-        chat.messages;
+        this.state.messages =
+
+            chat.messages;
+
+    }
 
 
 
@@ -516,7 +538,9 @@ addMessage(
 
 
 
-    if (this.ui) {
+    if (this.ui &&
+
+        this.state.currentChatId === chat.id) {
 
 
         this.ui.appendMessage(
@@ -554,12 +578,22 @@ updateMessage(
 
     messageId,
 
-    content
+    content,
+
+    chatId = null
 
 ) {
 
 
-    const chat = this.getCurrentChat();
+    const chat = chatId
+
+        ? this.state.chats.find(
+
+            item => item.id === chatId
+
+        ) || null
+
+        : this.getCurrentChat();
 
 
     if (!chat) {
@@ -596,24 +630,31 @@ updateMessage(
         new Date().toISOString();
 
 
+    if (this.state.currentChatId === chat.id) {
 
-    this.saveChats();
+        this.state.messages =
+
+            chat.messages;
 
 
+        if (this.ui) {
 
-    if (this.ui) {
+
+            this.ui.updateStreamingMessage(
+
+                messageId,
+
+                content
+
+            );
 
 
-        this.ui.updateStreamingMessage(
-
-            messageId,
-
-            content
-
-        );
-
+        }
 
     }
+
+
+    this.saveChats();
 
 
 
@@ -681,6 +722,79 @@ deleteMessage(messageId) {
 
     }
 
+
+
+    Events.emit(
+
+        "message:deleted",
+
+        messageId
+
+    );
+
+
+}
+
+
+/* =======================================================
+   ROLLBACK EMPTY ASSISTANT MESSAGE
+======================================================= */
+
+rollbackEmptyMessage(chatId, messageId) {
+
+
+    const chat = this.state.chats.find(
+
+        item => item.id === chatId
+
+    );
+
+
+    if (!chat) {
+
+        return;
+
+    }
+
+
+    const message = chat.messages.find(
+
+        item => item.id === messageId
+
+    );
+
+
+    // Only roll back messages that are still empty. A response that
+    // partially succeeded must never be discarded.
+    if (!message || message.content) {
+
+        return;
+
+    }
+
+
+    chat.messages = chat.messages.filter(
+
+        item => item.id !== messageId
+
+    );
+
+
+    if (this.state.currentChatId === chatId) {
+
+        this.state.messages = chat.messages;
+
+
+        if (this.ui) {
+
+            this.ui.removeMessage(messageId);
+
+        }
+
+    }
+
+
+    this.saveChats();
 
 
     Events.emit(
@@ -807,16 +921,25 @@ async sendMessage(content) {
    CREATE ASSISTANT MESSAGE
 ======================================================= */
 
-createAssistantMessage() {
+createAssistantMessage(chatId = null) {
 
 
     const message = this.addMessage(
 
         "assistant",
 
-        ""
+        "",
+
+        chatId
 
     );
+
+
+    if (!message) {
+
+        return null;
+
+    }
 
 
     Events.emit(

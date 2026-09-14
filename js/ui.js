@@ -554,6 +554,19 @@ if(this.elements.imageButton){
 
 
 
+        if(
+            this.elements.sendButton &&
+            this.elements.sendButton.disabled
+        ){
+
+
+            return;
+
+
+        }
+
+
+
         this.elements.input.value = "";
 
 
@@ -562,6 +575,30 @@ if(this.elements.imageButton){
     "chat:send",
     text
 );
+
+    }
+
+
+    /* =======================================================
+       SENDING STATE
+    ======================================================= */
+
+
+    setSending(isSending){
+
+
+        if(!this.elements.sendButton){
+
+
+            return;
+
+
+        }
+
+
+
+        this.elements.sendButton.disabled = !!isSending;
+
 
     }
 
@@ -937,9 +974,10 @@ if(this.elements.imageButton){
 
 
 
-        this.elements.typing.style.display =
-
-            value ? "block" : "none";
+        this.elements.typing.classList.toggle(
+            "hidden",
+            !value
+        );
 
 
     }
@@ -971,10 +1009,9 @@ if(this.elements.imageButton){
             message;
 
 
-
-        this.elements.error.style.display =
-
-            "block";
+        this.elements.error.classList.remove(
+            "hidden"
+        );
 
 
     }
@@ -995,10 +1032,9 @@ if(this.elements.imageButton){
         this.elements.error.textContent = "";
 
 
-
-        this.elements.error.style.display =
-
-            "none";
+        this.elements.error.classList.add(
+            "hidden"
+        );
 
 
     }

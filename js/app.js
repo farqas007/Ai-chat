@@ -69,7 +69,9 @@ constructor(){
 
     this.state = {
 
-        ready: false
+        ready: false,
+
+        sending: false
 
     };
 
@@ -431,11 +433,19 @@ Events.on(
             async data => {
 
 
+                let assistant = null;
+
+
+                const chatId = data.chatId;
+
 
                 try{
 
 
-                    const history = this.chat.getMessages()
+                    this.ui.hideError();
+
+
+                    const history = this.chat.getMessages(chatId)
                         .slice(0, -1)
                         .slice(-10)
                         .map(msg => ({
@@ -444,11 +454,15 @@ Events.on(
                         }));
 
 
-                    const assistant =
+                    assistant =
 
-                    this.chat.createAssistantMessage();
+                    this.chat.createAssistantMessage(chatId);
 
-                    this.chat.startStreaming(assistant.id);
+                    if (assistant) {
+
+                        this.chat.startStreaming(assistant.id);
+
+                    }
 
 
                     const response = await this.api.sendWithRetry(
@@ -460,7 +474,8 @@ const html = this.markdown.render(response);
 
 this.chat.updateMessage(
     assistant.id,
-    html
+    html,
+    chatId
 );
 
 this.codeblock.refresh();
@@ -499,6 +514,15 @@ this.chat.endStreaming(
                 catch(error){
 
 
+                    if (assistant) {
+
+                        this.chat.rollbackEmptyMessage(
+                            chatId,
+                            assistant.id
+                        );
+
+                    }
+
 
                     this.chat.handleError(
 
@@ -506,6 +530,13 @@ this.chat.endStreaming(
 
                     );
 
+
+                }
+
+
+                finally {
+
+                    this.releaseSendLock();
 
                 }
 
@@ -556,6 +587,13 @@ Events.on(
     text=>{
 
 
+        if (this.state.sending) {
+
+            return;
+
+        }
+
+
         console.log(
 
             "APP RECEIVED:",
@@ -565,11 +603,43 @@ Events.on(
         );
 
 
-        this.chat.sendMessage(
+        this.state.sending = true;
+
+        this.ui.setSending(true);
+
+
+        const result = this.chat.sendMessage(
 
             text
 
         );
+
+
+        if (result && typeof result.then === "function") {
+
+            result.then(msg => {
+
+                // No AI request was started (e.g. no active chat),
+                // so the send lock must not stay held.
+                if (!msg) {
+
+                    this.releaseSendLock();
+
+                }
+
+            }).catch(() => {
+
+                this.releaseSendLock();
+
+            });
+
+        }
+
+        else if (!result) {
+
+            this.releaseSendLock();
+
+        }
 
 
     }
@@ -805,6 +875,86 @@ Events.on(
         );
 
 
+        /*
+           Typing / Loading / Error Feedback
+        */
+
+
+        Events.on(
+
+            "ui:typing",
+
+            value=>{
+
+                this.ui.showTyping(value);
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "api:loading",
+
+            value=>{
+
+                this.ui.showTyping(value);
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "api:error",
+
+            ()=>{
+
+                this.ui.showTyping(false);
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "api:cancelled",
+
+            ()=>{
+
+                this.ui.showTyping(false);
+
+                this.releaseSendLock();
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "chat:error",
+
+            error=>{
+
+                this.ui.showTyping(false);
+
+                this.ui.showError(
+
+                    (error && (error.message || error)) ||
+
+                    "Something went wrong"
+
+                );
+
+            }
+
+        );
+
+
     }
 
 
@@ -829,6 +979,24 @@ Events.on(
             window.innerWidth > 768;
 
         this.settings.setSidebar(open);
+
+    }
+
+
+    /* =======================================================
+       SEND LOCK
+    ======================================================= */
+
+
+    releaseSendLock(){
+
+        this.state.sending = false;
+
+        if (this.ui) {
+
+            this.ui.setSending(false);
+
+        }
 
     }
 
