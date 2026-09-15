@@ -24,6 +24,172 @@ export class APIError extends Error {
 
 
 /* ===========================================================
+   SSE EVENT PARSER (client)
+   Reassembles the server's normalized SSE stream. Handles
+   multiple events per network read, one event split across
+   reads, and UTF-8 multi-byte boundaries (TextDecoder). SSE
+   comments (": ...") are dropped. Each complete event becomes
+   { event, data }.
+=========================================================== */
+
+function createSSEEventParser() {
+
+    let buffer = "";
+
+    const decoder = new TextDecoder("utf-8");
+
+    const normalizeEvent = (block, eventName) => {
+
+        let data = "";
+
+        for (let line of block.split("\n")) {
+
+            if (line.endsWith("\r")) {
+                line = line.slice(0, -1);
+            }
+
+            if (!line || line.startsWith(":")) {
+                continue;
+            }
+
+            if (line.startsWith("event:")) {
+                const name = line.slice(6).trim();
+                if (name) {
+                    eventName = name;
+                }
+            } else if (line.startsWith("data:")) {
+                data += (data ? "\n" : "") + line.slice(5).replace(/^ /, "");
+            }
+
+        }
+
+        return { event: eventName, data };
+
+    };
+
+    return {
+
+        push(chunk) {
+
+            const bytes = typeof chunk === "string"
+                ? new TextEncoder().encode(chunk)
+                : chunk;
+
+            buffer += decoder.decode(bytes, { stream: true });
+
+            buffer = buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+            const events = [];
+
+            let index;
+
+            while ((index = buffer.indexOf("\n\n")) !== -1) {
+
+                const block = buffer.slice(0, index);
+
+                buffer = buffer.slice(index + 2);
+
+                events.push(normalizeEvent(block, "message"));
+
+            }
+
+            return events;
+
+        },
+
+        flush() {
+
+            buffer += decoder.decode();
+
+            const block = buffer;
+
+            buffer = "";
+
+            if (!block.trim()) {
+                return [];
+            }
+
+            return [normalizeEvent(block, "message")];
+
+        }
+
+    };
+
+}
+
+
+/* ===========================================================
+   STREAM MESSAGE SANITIZER
+   Server messages should already be sanitized; this is a
+   defensive net so raw provider/key/stack text can never
+   escape to the caller. Falls back to a clean generic message.
+=========================================================== */
+
+function sanitizeStreamMessage(message, fallback) {
+
+    const text = typeof message === "string" ? message : "";
+
+    if (!text.trim()) {
+        return fallback;
+    }
+
+    if (/(sk-[A-Za-z0-9]{8,}|sk-or-|api[_-]?key|secret|Bearer\s+\S+|ECONNREFUSED|EAI_AGAIN|at\s+\S+:\d+)/i.test(text)) {
+        return fallback;
+    }
+
+    return text;
+
+}
+
+
+/* ===========================================================
+   STREAM ERROR EVENT
+   Reads the server's sanitized { error, ... } payload. Never
+   lets provider internals escape.
+=========================================================== */
+
+function errorFromStreamEvent(data) {
+
+    const fallback = "Stream failed. Please try again.";
+
+    let message = fallback;
+
+    if (typeof data === "string" && data.trim()) {
+
+        try {
+
+            const parsed = JSON.parse(data);
+
+            if (parsed && typeof parsed.error === "string" && parsed.error.trim()) {
+                message = parsed.error.trim();
+            }
+
+        } catch {}
+
+    }
+
+    return new APIError(0, sanitizeStreamMessage(message, fallback));
+
+}
+
+
+/* ===========================================================
+   ABORT DETECTION
+   Intentional AbortController cancellation is treated as a
+   cancel, never as an unexpected API failure.
+=========================================================== */
+
+function isAbortError(error, signal) {
+
+    return !!error && (
+        error.name === "AbortError" ||
+        (signal && signal.aborted)
+    );
+
+}
+
+
+/* ===========================================================
    API MANAGER
 =========================================================== */
 
@@ -122,7 +288,7 @@ export class API {
 
         if (!isJson) {
 
-            const text = await response.text().catch(() => "");
+            await response.text().catch(() => "");
 
             throw new APIError(
                 response.status,
@@ -418,15 +584,62 @@ trackUsage(data) {
 }
 
 
-/* =======================================================
+/* ===========================================================
    STREAM RESPONSE
-======================================================= */
+   POSTs with stream:true and reads the server's normalized SSE
+   stream. Re-emits deltas via onDelta, final content via onDone,
+   and sanitized failures via onError. Supports AbortController
+   cancellation through the existing createAbortController() /
+   cancelRequest() helpers. Never exposes raw provider errors.
+=========================================================== */
 
-async streamMessage(message, history = []){
+async streamMessage(message, history = [], callbacks = {}) {
+
+    const onDelta = typeof callbacks.onDelta === "function" ? callbacks.onDelta : null;
+    const onDone = typeof callbacks.onDone === "function" ? callbacks.onDone : null;
+    const onError = typeof callbacks.onError === "function" ? callbacks.onError : null;
+
+    if (!message) {
+        return null;
+    }
+
+    const signal = this.controller && this.controller.signal;
 
     this.state.loading = true;
 
     Events.emit("stream:start");
+
+    const failStream = error => {
+
+        if (onError) {
+            try {
+                onError(error);
+            } catch {
+                // Consumer errors never mask the stream failure.
+            }
+        }
+
+        Events.emit("api:error", error);
+
+    };
+
+    const finishStream = content => {
+
+        this.state.connected = true;
+
+        if (onDone) {
+            try {
+                onDone(content);
+            } catch {
+                // Consumer errors never break stream completion.
+            }
+        }
+
+        Events.emit("stream:end", content);
+
+    };
+
+    let content = "";
 
     try {
 
@@ -437,23 +650,154 @@ async streamMessage(message, history = []){
                 headers: this.getAuthHeaders(),
                 body: JSON.stringify({
                     message,
-                    history
-                })
+                    history,
+                    stream: true
+                }),
+                signal
             }
         );
 
-        const data = await this.readJsonResponse(response);
+        /* HTTP errors before streaming starts keep the existing
+           API error behavior: a clean APIError with a status
+           based fallback, re-thrown for the caller. */
 
-        if (data && data.success === false) {
-            throw new APIError(
-                response.status,
-                data.error || "Stream request failed"
-            );
+        if (!response.ok) {
+
+            let messageText = this.messageForStatus(response.status);
+
+            const contentType =
+                (response.headers && response.headers.get &&
+                 response.headers.get("content-type")) || "";
+
+            if (contentType.includes("application/json")) {
+
+                const data = await response.json().catch(() => null);
+
+                if (data && data.error) {
+                    messageText = sanitizeStreamMessage(data.error, messageText);
+                }
+
+            } else if (response.text) {
+
+                await response.text().catch(() => "");
+
+            }
+
+            const apiError = new APIError(response.status, messageText);
+
+            failStream(apiError);
+
+            throw apiError;
+
         }
 
-        const content = this.parseResponse(data);
+        if (!response.body) {
 
-        Events.emit("stream:end", content);
+            finishStream(content);
+
+            return content;
+
+        }
+
+        const reader = response.body.getReader();
+
+        const parser = createSSEEventParser();
+
+        let finished = false;
+
+        let streamError = null;
+
+        const applyEvents = events => {
+
+            for (const event of events) {
+
+                if (event.event === "done" || event.data === "[DONE]") {
+                    finished = true;
+                    return true;
+                }
+
+                if (event.event === "error") {
+                    streamError = errorFromStreamEvent(event.data);
+                    return true;
+                }
+
+                if (event.event === "delta") {
+
+                    let parsed;
+
+                    try {
+                        parsed = JSON.parse(event.data);
+                    } catch {
+                        streamError = new APIError(0, "The stream returned invalid data. Please try again.");
+                        return true;
+                    }
+
+                    if (!parsed || typeof parsed.delta !== "string") {
+                        streamError = new APIError(0, "The stream returned invalid data. Please try again.");
+                        return true;
+                    }
+
+                    if (parsed.delta) {
+
+                        content += parsed.delta;
+
+                        if (onDelta) {
+                            onDelta(parsed.delta, content);
+                        }
+
+                    }
+
+                }
+
+            }
+
+            return false;
+
+        };
+
+        for (;;) {
+
+            let result;
+
+            try {
+                result = await reader.read();
+            }
+            catch (error) {
+                if (!isAbortError(error, signal)) {
+                    streamError = new APIError(0, "The stream was interrupted. Please try again.");
+                }
+                break;
+            }
+
+            if (result.done) {
+                break;
+            }
+
+            if (applyEvents(parser.push(result.value))) {
+                break;
+            }
+
+        }
+
+        /* Drain a trailing event that arrived without its final
+           blank line (or finalize an otherwise clean stream). */
+
+        if (!streamError && !finished) {
+
+            applyEvents(parser.flush());
+
+        }
+
+        if (streamError) {
+            failStream(streamError);
+            return content;
+        }
+
+        if (signal && signal.aborted) {
+            return content || null;
+        }
+
+        finishStream(content);
 
         return content;
 
@@ -461,7 +805,11 @@ async streamMessage(message, history = []){
 
     catch (error) {
 
-        Events.emit("api:error", error);
+        if (isAbortError(error, signal)) {
+            return content || null;
+        }
+
+        failStream(error);
 
         throw error;
 
