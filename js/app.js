@@ -675,6 +675,17 @@ Events.on(
         }
 
 
+        if (this._lastSendText === text &&
+
+            this._lastSendAt !== null &&
+
+            Date.now() - this._lastSendAt < 1000) {
+
+            return;
+
+        }
+
+
         console.log(
 
             "APP RECEIVED:",
@@ -683,6 +694,10 @@ Events.on(
 
         );
 
+
+        this._lastSendText = text;
+
+        this._lastSendAt = Date.now();
 
         this.state.sending = true;
 
