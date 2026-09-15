@@ -111,7 +111,7 @@ export async function initAuth() {
 
             }
 
-            const password = passwordInput ? passwordInput.value : "";
+            const password = passwordInput ? passwordInput.value.trim() : "";
 
             try {
 
