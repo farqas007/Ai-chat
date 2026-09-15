@@ -71,7 +71,7 @@ export class CodeBlock {
     findBlocks(){
 
 
-        this.blocks =
+        const nodes =
 
             document.querySelectorAll(
 
@@ -79,6 +79,60 @@ export class CodeBlock {
 
             );
 
+
+        this.blocks = [];
+
+
+        nodes.forEach(
+
+            code => {
+
+
+
+                // Skip (and remove) empty code blocks: a block with no
+                // meaningful content is not usable, so it must not
+                // render a grey box with a useless Copy button. The
+                // surrounding message text is unaffected because only
+                // the empty <pre> element is removed.
+
+                const content =
+
+                    (code.textContent || "").trim();
+
+
+                if(!content){
+
+
+                    const pre =
+
+                        code.parentElement;
+
+
+                    if(
+
+                        pre &&
+
+                        pre.parentElement
+
+                    ){
+
+
+                        pre.remove();
+
+                        return;
+
+                    }
+
+
+                }
+
+
+                this.blocks.push(code);
+
+
+            }
+
+        );
 
 
         return this.blocks;

@@ -241,6 +241,181 @@ function testExistingMarkdownIntact() {
 }
 
 
+/* -----------------------------------------------------------
+   TEST 6 — Empty fenced blocks are omitted entirely.
+----------------------------------------------------------- */
+
+function testEmptyFenceOmitted() {
+
+    const blankFence = [
+        "Some text",
+        "```",
+        "```",
+        "More text"
+    ].join("\n");
+
+    const html = md.render(blankFence);
+
+    assert(
+        "T6 empty fence produces no code block",
+        !html.includes('<pre class="code-block">')
+    );
+
+    assert(
+        "T6 empty fence backticks removed",
+        !html.includes("```")
+    );
+
+    assert(
+        "T6 surrounding text survives",
+        html.includes("Some text") &&
+        html.includes("More text")
+    );
+
+    const languageEmpty =
+        md.render("```javascript\n```");
+
+    assert(
+        "T6 empty fenced block with language is omitted",
+        languageEmpty.trim() === ""
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 7 — Multiple code blocks keep language + content.
+----------------------------------------------------------- */
+
+function testMultipleCodeBlocks() {
+
+    const source = [
+        "First:",
+        "```js",
+        "const a = 1;",
+        "```",
+        "",
+        "Second:",
+        "```python",
+        "print(2)",
+        "```"
+    ].join("\n");
+
+    const html = md.render(source);
+
+    const blocks =
+        html.split('<pre class="code-block">').length - 1;
+
+    assert(
+        "T7 both block wrappers present",
+        blocks === 2
+    );
+
+    assert(
+        "T7 first language class preserved",
+        html.includes(
+            '<code class="language-js">const a = 1;</code>'
+        )
+    );
+
+    assert(
+        "T7 second language class preserved",
+        html.includes(
+            '<code class="language-python">print(2)</code>'
+        )
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 8 — Inline code renders and stays untouched by the
+   bold, italic and link transforms.
+----------------------------------------------------------- */
+
+function testInlineCode() {
+
+    const inline =
+        md.render("Call the `fetch(url)` helper.");
+
+    assert(
+        "T8 inline code wraps in <code>",
+        inline.includes("<code>fetch(url)</code>")
+    );
+
+    const special =
+        md.render("The `a && b` and `x < y` values.");
+
+    assert(
+        "T8 inline code escapes &",
+        special.includes("<code>a &amp;&amp; b</code>")
+    );
+
+    const link =
+        md.render("See `[not a link]` inside backticks.");
+
+    assert(
+        "T8 inline code resists link transform",
+        link.includes("<code>[not a link]</code>") &&
+        !link.includes("<a href=")
+    );
+
+    const italic =
+        md.render("Keep `code *inside*` intact.");
+
+    assert(
+        "T8 inline code resists italic transform",
+        italic.includes("<code>code *inside*</code>") &&
+        !italic.includes("<em>")
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 9 — Special characters inside fenced code survive
+   with the language class intact.
+----------------------------------------------------------- */
+
+function testCodeSpecialCharacters() {
+
+    const source = [
+        "```javascript",
+        'console.log("a < b && c > d");',
+        "const s = `tick`;",
+        "```"
+    ].join("\n");
+
+    const html = md.render(source);
+
+    assert(
+        "T9 language class preserved",
+        html.includes('<code class="language-javascript">')
+    );
+
+    assert(
+        "T9 < is escaped",
+        html.includes("a &lt; b")
+    );
+
+    assert(
+        "T9 > is escaped",
+        html.includes("c &gt; d")
+    );
+
+    assert(
+        "T9 & is escaped",
+        html.includes("&amp;&amp;")
+    );
+
+    assert(
+        "T9 template literal backticks preserved",
+        html.includes("`tick`")
+    );
+
+}
+
+
 testMultilineCodeBlock();
 
 testCodeBlockWithoutLanguage();
@@ -250,6 +425,14 @@ testLooseTagPrefixesStayText();
 testCompleteTagStillSanitized();
 
 testExistingMarkdownIntact();
+
+testEmptyFenceOmitted();
+
+testMultipleCodeBlocks();
+
+testInlineCode();
+
+testCodeSpecialCharacters();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

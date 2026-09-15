@@ -42,6 +42,38 @@
 
 
 /* ===========================================================
+   SIDEBAR HEADER
+=========================================================== */
+
+.sidebar-header{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:14px;
+
+    padding:20px 20px 16px;
+
+    border-bottom:1px solid var(--border-color);
+
+}
+
+
+.sidebar-header h2{
+
+    font-size:1.15rem;
+
+    font-weight:700;
+
+    letter-spacing:.2px;
+
+    color:var(--text-primary);
+
+}
+
+
+/* ===========================================================
    NEW CHAT BUTTON
 =========================================================== */
 
@@ -71,6 +103,12 @@
 #newChatBtn:hover{
 
     background:var(--accent-hover);
+
+}
+
+#newChatBtn svg{
+
+    flex-shrink:0;
 
 }
 
@@ -306,6 +344,20 @@
 
 
 #sidebar.collapsed .sidebar-search{
+
+    display:none;
+
+}
+
+
+#sidebar.collapsed .sidebar-header h2{
+
+    display:none;
+
+}
+
+
+#sidebar.collapsed #settingsBtn span{
 
     display:none;
 

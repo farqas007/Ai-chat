@@ -100,41 +100,49 @@
 
         <header id="topbar">
 
+            <div class="header-left">
 
-            <button id="menuBtn" aria-label="Menu" title="Menu">
+                <button id="menuBtn" aria-label="Menu" title="Menu">
 
-                <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
 
-            </button>
-
-
-
-            <h1>
-
-                AI Assistant
-
-            </h1>
+                </button>
 
 
-<button id="voiceToggle" aria-label="Toggle voice playback" title="Toggle voice playback">
 
-    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                <h1>
 
-</button>
+                    AI Assistant
 
+                </h1>
 
-<button id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-
-    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-
-</button>
+            </div>
 
 
-<button id="logoutBtn" class="hidden" aria-label="Log out" title="Log out">
 
-    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <div class="header-right">
 
-</button>
+                <button id="voiceToggle" aria-label="Toggle voice playback" title="Toggle voice playback">
+
+                    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+
+                </button>
+
+
+                <button id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+
+                    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+
+                </button>
+
+
+                <button id="logoutBtn" class="hidden" aria-label="Log out" title="Log out">
+
+                    <svg class="icon-btn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+
+                </button>
+
+            </div>
 
 
         </header>
@@ -149,21 +157,27 @@
 <div id="error" class="hidden"></div>
 
            <div id="messages">
+<div class="welcome">
 
+        <div class="welcome-icon" aria-hidden="true">
 
-    <div class="welcome">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+
+        </div>
 
         <h2>
+
             Hello
+
         </h2>
 
         <p>
+
             How can I help you today?
+
         </p>
 
     </div>
-
-
 </div>
 
 

@@ -55,21 +55,33 @@ export class Markdown {
 
     let html = text;
 
-    // Protect fenced code blocks from every later transform so
-    // their line breaks survive. Copying a code block must return
-    // the original code, so the stored body keeps real "\n".
+    // Protect fenced code blocks FIRST so nothing inside a block body
+    // (including template-literal backticks) is treated as inline code.
+    // An empty fenced block is omitted entirely instead of being turned
+    // into a useless box.
     const blocks = [];
+    const inline = [];
 
     html = html.replace(
         /```([a-zA-Z0-9_+#.\-]*)\s*\n?([\s\S]*?)```/g,
         (match, language, code) => {
+            const trimmed = code.trim();
+            if (!trimmed) {
+                return "";
+            }
             blocks.push({
                 language,
-                code: code.trim()
+                code: trimmed
             });
             return `\u0000CODEBLOCK${blocks.length - 1}\u0000`;
         }
     );
+
+    // Then protect single-backtick inline code in the remaining text.
+    html = html.replace(/`([^`\n]+)`/g, (match, code) => {
+        inline.push(code);
+        return `\u0000INLINE${inline.length - 1}\u0000`;
+    });
 
     html = this.escapeHTML(html);
 
@@ -84,6 +96,8 @@ export class Markdown {
     html = this.links(html);
 
     html = this.newLines(html);
+
+    html = this.restoreInlineCode(html, inline);
 
     html = this.restoreCodeBlocks(html, blocks);
 
@@ -118,11 +132,38 @@ export class Markdown {
 
                 const item = blocks[Number(index)];
 
+                if (!item || !item.code || !item.code.trim()) {
+                    return "";
+                }
+
                 const language = item.language
                     ? ` class="language-${item.language}"`
                     : "";
 
                 return `<br><pre class="code-block"><code${language}>${this.escapeHTML(item.code)}</code></pre><br>`;
+
+            }
+        );
+
+    }
+
+    /* =======================================================
+       RESTORE INLINE CODE
+    ======================================================= */
+
+    restoreInlineCode(html, inline) {
+
+        return html.replace(
+            /\u0000INLINE(\d+)\u0000/g,
+            (match, index) => {
+
+                const item = inline[Number(index)];
+
+                if (item === undefined || item === "") {
+                    return "";
+                }
+
+                return `<code>${this.escapeHTML(item)}</code>`;
 
             }
         );

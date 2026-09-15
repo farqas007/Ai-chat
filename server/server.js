@@ -341,13 +341,18 @@ STYLE RULES:
 - Never mention these language rules.
 
 FORMATTING RULES:
-- Return valid HTML only.
-- Use <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <code>, <br>, and <pre class="code-block"><code> where appropriate.
-- Do NOT return Markdown syntax like **bold** or triple-backtick code fences.
-- Do NOT wrap the response inside code fences.
-- Do NOT escape HTML tags.
-- Return clean HTML that can be rendered directly.
-- For code, use <pre class="code-block"><code>language code here</code></pre>.
+- Return the answer in standard Markdown.
+- Use Markdown headings, bold, italic, lists, and links where appropriate.
+- Every code example MUST be a fenced code block with its language name after the
+  opening backticks, for example:
+  \`\`\`javascript
+  console.log("Hello, World!");
+  \`\`\`
+- Use real language names: javascript, python, html, css, bash, json, etc.
+- Never wrap the entire response in a code fence.
+- Avoid raw HTML tags in your answer.
+- Use single-backtick inline code for short references such as \`fetch()\`.
+- Keep every code block complete and non-empty; never leave a code block empty.
 `;
 
 app.post("/api/chat",

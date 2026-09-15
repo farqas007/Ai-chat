@@ -6,6 +6,21 @@
 
 
 /* ===========================================================
+   WIDE DESKTOPS
+=========================================================== */
+
+@media (min-width:1600px){
+
+    :root{
+
+        --max-chat-width:1000px;
+
+    }
+
+}
+
+
+/* ===========================================================
    LARGE LAPTOPS
 =========================================================== */
 
@@ -182,6 +197,45 @@
 
     }
 
+    .message{
+
+        min-width:0;
+
+    }
+
+    .message-content{
+
+        min-width:0;
+
+    }
+
+    .message-content pre{
+
+        padding:44px 14px 14px;
+
+    }
+
+    .message-content .copy-code{
+
+        top:8px;
+        right:10px;
+
+    }
+
+    .message-content .code-language{
+
+        top:10px;
+        left:12px;
+
+    }
+
+    .welcome-icon{
+
+        width:56px;
+        height:56px;
+
+    }
+
     #inputArea{
 
         padding:10px;
@@ -212,6 +266,13 @@
     #topbar h1{
 
         font-size:.9rem;
+
+    }
+
+    .header-left,
+    .header-right{
+
+        gap:8px;
 
     }
 

@@ -163,6 +163,8 @@ img{
 
     flex:1;
 
+    min-width:0;
+
     display:flex;
 
     flex-direction:column;
@@ -207,10 +209,25 @@ img{
 }
 
 
+.header-left{
+
+    flex:1;
+
+    min-width:0;
+
+}
+
+
 #topbar h1{
 
     font-size:1.2rem;
     font-weight:600;
+
+    white-space:nowrap;
+
+    overflow:hidden;
+
+    text-overflow:ellipsis;
 
 }
 
@@ -284,14 +301,36 @@ img{
 
     flex:1;
 
+    min-width:0;
+
     min-height:48px;
     max-height:180px;
 
-    padding:14px;
+    padding:14px 16px;
+
+    border:1px solid transparent;
 
     border-radius:var(--radius-medium);
 
     background:var(--bg-tertiary);
+
+    transition:var(--transition);
+
+}
+
+
+#messageInput::placeholder{
+
+    color:var(--text-muted);
+
+}
+
+
+#messageInput:focus{
+
+    border-color:var(--accent);
+
+    box-shadow:0 0 0 3px rgba(59,130,246,.12);
 
 }
 
@@ -331,6 +370,26 @@ img{
 #logoutBtn:hover{
 
     background:var(--bg-hover);
+
+}
+
+
+/* Primary send button */
+
+#sendBtn{
+
+    background:var(--accent);
+
+    color:#ffffff;
+
+}
+
+
+#sendBtn:hover{
+
+    background:var(--accent-hover);
+
+    opacity:1;
 
 }
 
