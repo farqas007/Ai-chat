@@ -141,7 +141,12 @@ function createHarness() {
         player: { pause() {}, resume() {} },
         config: { paused: false }
     };
-    app.api = { sendWithRetry: async () => "<p>ok</p>" };
+    app.api = {
+        streamMessage: async (_m, _h, callbacks) => {
+            callbacks.onDone("<p>ok</p>");
+            return "<p>ok</p>";
+        }
+    };
 
     app.registerEvents();
 
@@ -178,7 +183,10 @@ async function scenarioSuccess() {
 
     const c = chat.createChat("Success Chat");
 
-    app.api.sendWithRetry = async () => "<p>Hello back</p>";
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        callbacks.onDone("<p>Hello back</p>");
+        return "<p>Hello back</p>";
+    };
 
     Events.emit("chat:send", "Hello there");
 
@@ -236,7 +244,11 @@ async function scenarioFailure() {
 
     const c = chat.createChat("Failure Chat");
 
-    app.api.sendWithRetry = async () => { throw new Error("boom"); };
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        const err = new Error("boom");
+        callbacks.onError(err);
+        throw err;
+    };
 
     Events.emit("chat:send", "make it fail");
 
@@ -289,10 +301,13 @@ async function scenarioDoubleSend() {
     let releaseRequest = null;
     let apiCalls = 0;
 
-    app.api.sendWithRetry = (message, history) => {
+    app.api.streamMessage = (message, history, callbacks) => {
         apiCalls++;
         return new Promise(resolve => {
-            releaseRequest = () => resolve("<p>Done</p>");
+            releaseRequest = () => {
+                callbacks.onDone("<p>Done</p>");
+                resolve("<p>Done</p>");
+            };
         });
     };
 
@@ -353,8 +368,12 @@ async function scenarioChatSwitch() {
 
     let failRequest = null;
 
-    app.api.sendWithRetry = () => new Promise((resolve, reject) => {
-        failRequest = () => reject(new Error("switched away"));
+    app.api.streamMessage = (_m, _h, callbacks) => new Promise((resolve, reject) => {
+        failRequest = () => {
+            const err = new Error("switched away");
+            callbacks.onError(err);
+            reject(err);
+        };
     });
 
     const a = chat.createChat("Chat A");
@@ -416,7 +435,11 @@ async function scenarioReload() {
 
     const c = chat.createChat("Reload Chat");
 
-    app.api.sendWithRetry = async () => { throw new Error("reload fail"); };
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        const err = new Error("reload fail");
+        callbacks.onError(err);
+        throw err;
+    };
 
     Events.emit("chat:send", "this will fail");
 
@@ -462,7 +485,10 @@ async function scenarioSoundDisabled() {
 
     app.settings.set("sound", false);
 
-    app.api.sendWithRetry = async () => "<p>Spoken reply</p>";
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        callbacks.onDone("<p>Spoken reply</p>");
+        return "<p>Spoken reply</p>";
+    };
 
     const c = chat.createChat("Sound Off Chat");
 
@@ -498,7 +524,10 @@ async function scenarioSoundEnabled() {
 
     app.settings.set("sound", true);
 
-    app.api.sendWithRetry = async () => "<p>Hello there</p>";
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        callbacks.onDone("<p>Hello there</p>");
+        return "<p>Hello there</p>";
+    };
 
     const c = chat.createChat("Sound On Chat");
 
@@ -532,7 +561,11 @@ async function scenarioErrorClearsTyping() {
 
     const c = chat.createChat("Stuck Typing Chat");
 
-    app.api.sendWithRetry = async () => { throw new Error("hard fail"); };
+    app.api.streamMessage = async (_m, _h, callbacks) => {
+        const err = new Error("hard fail");
+        callbacks.onError(err);
+        throw err;
+    };
 
     // Drive the request directly (bypassing the composer) to prove the
     // ai:request error path itself clears the indicator.

@@ -121,7 +121,7 @@ function createHarness() {
         player: { pause() {}, resume() {} },
         config: { paused: false }
     };
-    app.api = { sendWithRetry: async () => "<p>ok</p>" };
+    app.api = { streamMessage: async (_m, _h, c) => { c.onDone("<p>ok</p>"); return "<p>ok</p>"; } };
 
     app.registerEvents();
 
@@ -162,8 +162,8 @@ async function testSuccessAfterSwitch() {
 
     let resolveRequest = null;
 
-    app.api.sendWithRetry = () => new Promise(resolve => {
-        resolveRequest = () => resolve("<p>Hello from A</p>");
+    app.api.streamMessage = (_m, _h, c) => new Promise(resolve => {
+        resolveRequest = () => { c.onDone("<p>Hello from A</p>"); resolve("<p>Hello from A</p>"); };
     });
 
     Events.emit("chat:send", "message in A");
@@ -242,7 +242,7 @@ async function testSameChatSuccess() {
 
     const a = chat.createChat("Same Chat A");
 
-    app.api.sendWithRetry = async () => "<p>Same-chat reply</p>";
+    app.api.streamMessage = async (_m, _h, c) => { c.onDone("<p>Same-chat reply</p>"); return "<p>Same-chat reply</p>"; };
 
     Events.emit("chat:send", "normal message");
 
@@ -293,8 +293,8 @@ async function testFailureAfterSwitch() {
 
     let rejectRequest = null;
 
-    app.api.sendWithRetry = () => new Promise((resolve, reject) => {
-        rejectRequest = () => reject(new Error("A message failed"));
+    app.api.streamMessage = (_m, _h, c) => new Promise((resolve, reject) => {
+        rejectRequest = () => { const e = new Error("A message failed"); c.onError(e); reject(e); };
     });
 
     Events.emit("chat:send", "fail me");

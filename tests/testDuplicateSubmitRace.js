@@ -125,7 +125,12 @@ function createHarness() {
         player: { pause() {}, resume() {} },
         config: { paused: false }
     };
-    app.api = { sendWithRetry: async () => "<p>ok</p>" };
+    app.api = {
+        streamMessage: async (_m, _h, callbacks) => {
+            callbacks.onDone("<p>ok</p>");
+            return "<p>ok</p>";
+        }
+    };
 
     app.registerEvents();
 
@@ -175,8 +180,9 @@ async function testSingleSubmission() {
 
     let apiCalls = 0;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
+        callbacks.onDone("<p>ok</p>");
         return "<p>ok</p>";
     };
 
@@ -226,12 +232,15 @@ async function testRapidIdenticalDuplicateSuppressed() {
 
     let firstRequest = true;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
         if (firstRequest) {
             firstRequest = false;
-            throw new Error("fast temporary failure");
+            const err = new Error("fast temporary failure");
+            callbacks.onError(err);
+            throw err;
         }
+        callbacks.onDone("<p>reply</p>");
         return "<p>reply</p>";
     };
 
@@ -297,8 +306,9 @@ async function testSameMessageAfterWindow() {
 
     let apiCalls = 0;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
+        callbacks.onDone("<p>ok</p>");
         return "<p>ok</p>";
     };
 
@@ -347,8 +357,9 @@ async function testDifferentMessageNotBlocked() {
 
     let apiCalls = 0;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
+        callbacks.onDone("<p>ok</p>");
         return "<p>ok</p>";
     };
 
@@ -398,12 +409,15 @@ async function testSuppressedSendKeepsComposerInput() {
 
     let failFirst = true;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
         if (failFirst) {
             failFirst = false;
-            throw new Error("fast failure");
+            const err = new Error("fast failure");
+            callbacks.onError(err);
+            throw err;
         }
+        callbacks.onDone("<p>ok</p>");
         return "<p>ok</p>";
     };
 
@@ -470,8 +484,9 @@ async function testSameTextDifferentChatNotBlocked() {
 
     let apiCalls = 0;
 
-    app.api.sendWithRetry = async () => {
+    app.api.streamMessage = async (_m, _h, callbacks) => {
         apiCalls++;
+        callbacks.onDone("<p>ok</p>");
         return "<p>ok</p>";
     };
 

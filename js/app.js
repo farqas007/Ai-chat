@@ -454,6 +454,8 @@ Events.on(
                 const chatId = data.chatId;
 
 
+                let finalized = false;
+                let aborted = false;
                 try{
 
 
@@ -480,61 +482,237 @@ Events.on(
                     }
 
 
-                    const response = await this.api.sendWithRetry(
+
+
+
+                    // ===============================
+                    // Exactly-once finalizer
+                    // ===============================
+                    // Render Markdown only once, when the stream
+                    // completes. Deltas never touch history and never
+                    // render; the final text is finalized exactly once
+                    // into the SAME assistant bubble.
+
+                    const finalizeChat = (fullText) => {
+
+                        if (finalized) {
+
+                            return;
+
+                        }
+
+
+                        finalized = true;
+
+
+                        const html =
+
+                            this.markdown.render(fullText);
+
+
+                        this.chat.updateMessage(
+                            assistant.id,
+                            html,
+                            chatId
+                        );
+
+
+                        this.codeblock.refresh();
+
+
+                        // ===============================
+                        // Remove HTML tags before speaking
+                        // ===============================
+
+                        const temp =
+
+                            document.createElement("div");
+
+                        temp.innerHTML = fullText;
+
+                        const speechText =
+
+                            temp.textContent ||
+                            temp.innerText ||
+                            "";
+
+
+                        console.log(
+                            "FINAL SPEECH TEXT:",
+                            speechText
+                        );
+
+
+                        console.log(
+                            "VOICE DETECT:",
+                            this.voice.detector.detect(speechText)
+                        );
+
+
+                        // Only speak the reply when the sound setting
+                        // is enabled. Spoken exactly once, after the
+                        // complete response arrives.
+                        if (
+                            speechText &&
+                            this.settings &&
+                            this.settings.get("sound")
+                        ) {
+
+                            this.voice.speak(speechText);
+
+                        }
+
+
+                        this.chat.endStreaming(
+                            assistant.id
+                        );
+
+                    };
+
+
+                    const finalizeAbort = () => {
+
+                        if (finalized || aborted) {
+
+                            return;
+
+                        }
+
+
+                        aborted = true;
+
+                        finalized = true;
+
+
+                        if (assistant) {
+
+                            this.chat.endStreaming(
+                                assistant.id
+                            );
+
+                            // Roll back only an EMPTY bubble so any
+                            // partial content the provider already
+                            // delivered is preserved.
+                            this.chat.rollbackEmptyMessage(
+                                chatId,
+                                assistant.id
+                            );
+
+                        }
+
+                    };
+
+
+                    await this.api.streamMessage(
                         data.message,
-                        history
+                        history,
+                        {
+                            onDelta: (delta, fullText) => {
+
+                                // Race guard: only the chat that issued
+                                // the request may receive partials. A
+                                // stale late delta must never touch a
+                                // newly selected chat.
+                                if (
+                                    assistant &&
+                                    this.chat.getCurrentChat() &&
+                                    this.chat.getCurrentChat().id === chatId
+                                ) {
+
+                                    this.chat.streamUpdate(
+                                        assistant.id,
+                                        fullText
+                                    );
+
+                                }
+
+                            },
+
+                            onDone: fullText => {
+
+                                finalizeChat(fullText);
+
+                            },
+
+                            onError: error => {
+
+                                // Exactly-once error finalizer. The API
+                                // calls onError and then EITHER rejects
+                                // (HTTP error, so the catch below would
+                                // otherwise re-fire) OR resolves (stream
+                                // "error" event, so the post-await abort
+                                // check would otherwise re-fire). Mark
+                                // finalized HERE so every downstream path
+                                // (catch / post-await abort) sees it
+                                // already ran — no doubled cleanup, no
+                                // doubled error surface, no doubled
+                                // history write.
+                                if (finalized) {
+
+                                    return;
+
+                                }
+
+
+                                finalized = true;
+
+                                // The stream failed. Hide typing, roll
+                                // back only if the bubble is empty
+                                // (partials survive), then surface the
+                                // sanitized error.
+                                if (assistant) {
+
+                                    this.chat.endStreaming(
+                                        assistant.id
+                                    );
+
+
+                                    this.chat.rollbackEmptyMessage(
+                                        chatId,
+                                        assistant.id
+                                    );
+
+                                }
+
+
+                                this.chat.handleError(error);
+
+                            }
+
+                        }
                     );
 
-const html = this.markdown.render(response);
 
-this.chat.updateMessage(
-    assistant.id,
-    html,
-    chatId
-);
+                    // A silent abort (user cancelled / signal) resolves
+                    // without firing onDone or onError. Finalize quietly,
+                    // preserving any partial content.
+                    if (!finalized) {
 
-this.codeblock.refresh();
+                        finalizeAbort();
 
-
-// ===============================
-// Remove HTML tags before speaking
-// ===============================
-
-const temp = document.createElement("div");
-
-temp.innerHTML = response;
-
-const speechText = temp.textContent || temp.innerText || "";
-
-console.log(
-    "FINAL SPEECH TEXT:",
-    speechText
-);
-
-console.log(
-    "VOICE DETECT:",
-    this.voice.detector.detect(speechText)
-);
-
-// Only speak the reply when the sound setting is enabled.
-if (
-    speechText &&
-    this.settings &&
-    this.settings.get("sound")
-) {
-
-    this.voice.speak(speechText);
-
-}
-
-this.chat.endStreaming(
-    assistant.id
-);
+                    }
 
 
                 }
 
 catch(error){
+
+
+                    // onError already finalized exactly-once for both
+                    // failure shapes. The streamMessage contract: onError
+                    // fires first, then EITHER the awaiting frame rejects
+                    // here (HTTP error) OR the stream resolves with the
+                    // partial (stream "error" event, handled by the
+                    // post-await abort check). Both run after onError, so
+                    // finalized is already true by the time we arrive.
+                    // Bail out wholesale — no doubled typing cleanup, no
+                    // doubled rollback, no doubled error surface, no
+                    // doubled history write.
+                    if (finalized) {
+
+                        return;
+
+                    }
 
 
                     if (assistant) {

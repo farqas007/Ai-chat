@@ -1049,11 +1049,16 @@ streamUpdate(
     if (this.ui) {
 
 
+        // Live deltas show raw text in the SAME assistant bubble.
+        // Markdown/code blocks are rendered exactly once at
+        // completion via updateMessage (renderMarkdown = true).
         this.ui.updateStreamingMessage(
 
             messageId,
 
-            text
+            text,
+
+            false
 
         );
 

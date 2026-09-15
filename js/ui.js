@@ -909,7 +909,9 @@ if(this.elements.imageButton){
 
         id,
 
-        text
+        text,
+
+        renderMarkdown = true
 
     ){
 
@@ -945,13 +947,42 @@ if(this.elements.imageButton){
 
 
 
-        content.innerHTML =
+        if (renderMarkdown) {
 
-            this.markdown.render(
 
-                text
 
-            );
+            // Final content: render Markdown exactly once, when the
+            // stream completes. Code blocks are processed afterwards
+            // by app.codeblock.refresh().
+
+
+            content.innerHTML =
+
+                this.markdown.render(
+
+                    text
+
+                );
+
+
+
+
+        } else {
+
+
+
+            // In-flight deltas: update the SAME bubble with raw text
+            // only. Markdown is never re-rendered per chunk.
+
+
+            content.textContent =
+
+                text;
+
+
+
+
+        }
 
 
 
