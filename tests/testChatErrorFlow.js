@@ -32,13 +32,35 @@ globalThis.localStorage = (() => {
 globalThis.document = {
     querySelector: () => null,
     querySelectorAll: () => [],
-    createElement: () => ({
-        className: "", innerHTML: "", style: {},
-        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-        appendChild() {}, addEventListener() {},
-        setAttribute() {}, remove() {}, focus() {},
-        querySelector: () => null
-    }),
+    createElement: () => {
+        const el = {
+            className: "", style: {},
+            _html: "", _text: "",
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            appendChild() {}, addEventListener() {},
+            setAttribute() {}, remove() {}, focus() {},
+            querySelector: () => null
+        };
+        Object.defineProperty(el, "innerHTML", {
+            get: () => el._html,
+            set: value => {
+                el._html = value;
+                // A real element derives textContent from innerHTML
+                // after tags are stripped; the ai:request handler
+                // reads temp.textContent to build the speech text.
+                el._text = String(value)
+                    .replace(/<[^>]+>/g, " ")
+                    .replace(/&nbsp;/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim();
+            }
+        });
+        Object.defineProperty(el, "textContent", {
+            get: () => el._text,
+            set: value => { el._text = value; }
+        });
+        return el;
+    },
     addEventListener() {},
     body: { appendChild() {}, style: {} }
 };
@@ -427,6 +449,116 @@ async function scenarioReload() {
 
 
 /* ===========================================================
+   SCENARIO 6 — Sound OFF: assistant reply is never spoken
+=========================================================== */
+
+async function scenarioSoundDisabled() {
+
+    h.resetCalls();
+
+    let speechCount = 0;
+
+    app.voice.speak = () => { speechCount++; };
+
+    app.settings.set("sound", false);
+
+    app.api.sendWithRetry = async () => "<p>Spoken reply</p>";
+
+    const c = chat.createChat("Sound Off Chat");
+
+    Events.emit("chat:send", "please answer");
+
+    await settle();
+
+    assert(
+        "S6 no speech when sound disabled",
+        speechCount === 0
+    );
+
+    assert(
+        "S6 reply rendered normally",
+        findChat(store, c.id).messages.length === 2 &&
+        findChat(store, c.id).messages[1].content === "<p>Spoken reply</p>"
+    );
+
+}
+
+
+/* ===========================================================
+   SCENARIO 7 — Sound ON: assistant reply is spoken once
+=========================================================== */
+
+async function scenarioSoundEnabled() {
+
+    h.resetCalls();
+
+    let speechText = null;
+
+    app.voice.speak = text => { speechText = text; };
+
+    app.settings.set("sound", true);
+
+    app.api.sendWithRetry = async () => "<p>Hello there</p>";
+
+    const c = chat.createChat("Sound On Chat");
+
+    Events.emit("chat:send", "say hello");
+
+    await settle();
+
+    assert(
+        "S7 one speak call when sound enabled",
+        speechText !== null
+    );
+
+    assert(
+        "S7 spoken text is tag-free plain text",
+        speechText === "Hello there"
+    );
+
+    app.settings.set("sound", false);
+
+}
+
+
+/* ===========================================================
+   SCENARIO 8 — Error path explicitly clears typing indicator
+   even when no request was ever accepted by the UI
+=========================================================== */
+
+async function scenarioErrorClearsTyping() {
+
+    h.resetCalls();
+
+    const c = chat.createChat("Stuck Typing Chat");
+
+    app.api.sendWithRetry = async () => { throw new Error("hard fail"); };
+
+    // Drive the request directly (bypassing the composer) to prove the
+    // ai:request error path itself clears the indicator.
+    Events.emit("chat:send", "trigger failure");
+
+    await settle();
+
+    const typingHistory = calls.typing.filter(
+        v => v === false
+    ).length;
+
+    assert(
+        "S8 typing indicator cleared on error path",
+        typingHistory >= 1 &&
+        calls.typing[calls.typing.length - 1] === false
+    );
+
+    assert(
+        "S8 no empty assistant persists after error",
+        findChat(store, c.id).messages.every(m => m.content !== "")
+    );
+
+}
+
+
+/* ===========================================================
    RUN ALL SCENARIOS
 =========================================================== */
 
@@ -439,6 +571,12 @@ await scenarioDoubleSend();
 await scenarioChatSwitch();
 
 await scenarioReload();
+
+await scenarioSoundDisabled();
+
+await scenarioSoundEnabled();
+
+await scenarioErrorClearsTyping();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

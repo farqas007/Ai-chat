@@ -4,6 +4,9 @@
    Description : Voice Settings Manager
 =========================================================== */
 
+import { STORAGE_KEYS } from "./storage.js";
+
+
 export class VoiceSettings {
 
     constructor() {
@@ -130,7 +133,7 @@ export class VoiceSettings {
 
         localStorage.setItem(
 
-            "voice-settings",
+            STORAGE_KEYS.VOICE_SETTINGS,
 
             JSON.stringify(
 
@@ -150,13 +153,13 @@ export class VoiceSettings {
 
         const data = localStorage.getItem(
 
-            "voice-settings"
+            STORAGE_KEYS.VOICE_SETTINGS
 
         );
 
         if (!data) {
 
-            return;
+            return this.all();
 
         }
 
@@ -184,6 +187,8 @@ export class VoiceSettings {
 
         }
 
+        return this.all();
+
     }
 
     /* =======================================================
@@ -194,7 +199,7 @@ export class VoiceSettings {
 
         localStorage.removeItem(
 
-            "voice-settings"
+            STORAGE_KEYS.VOICE_SETTINGS
 
         );
 

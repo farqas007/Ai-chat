@@ -107,6 +107,7 @@ emit(eventName, payload = null) {
 
     const listeners = this.events.get(eventName);
 
+    let result;
 
     listeners.forEach((listener)=>{
 
@@ -114,7 +115,13 @@ emit(eventName, payload = null) {
         try {
 
 
-            listener(payload);
+            const value = listener(payload);
+
+            if (value) {
+
+                result = value;
+
+            }
 
 
         }
@@ -151,6 +158,8 @@ emit(eventName, payload = null) {
         );
 
     }
+
+    return result;
 
 }
     /* =======================================================

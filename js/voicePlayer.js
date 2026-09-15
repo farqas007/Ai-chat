@@ -45,13 +45,14 @@ export class VoicePlayer {
             text
         );
 
-        speech.rate = 0.95;
+        speech.rate =
+            this.settings.rate ?? 1;
 
         speech.pitch =
-            this.settings.pitch;
+            this.settings.pitch ?? 1;
 
         speech.volume =
-            this.settings.volume;
+            this.settings.volume ?? 1;
 
        if (voice) {
 
@@ -115,9 +116,34 @@ else{
 
         );
 
-        this.synthesis.speak(
-            speech
-        );
+        try {
+
+            this.synthesis.speak(
+                speech
+            );
+
+        }
+        catch (error) {
+
+            // A synchronous throw means this utterance never became
+            // "current", so onerror/onend will never fire and the
+            // queue would stall forever. Recover by reporting the
+            // error immediately so the caller advances the queue.
+            if (onError) {
+
+                onError(error);
+
+            }
+            else {
+
+                Events.emit(
+                    "voice:speak:error",
+                    error
+                );
+
+            }
+
+        }
 
     }
 

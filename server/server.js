@@ -17,6 +17,11 @@ import { handleCodexRequest } from "./codexHandler.js";
 import { isSensitivePath } from "./pathGuard.js";
 import { resolveServerConfig } from "./serverConfig.js";
 import {
+    readUpstreamJson,
+    handleUpstreamError,
+    GENERIC_SERVER_ERROR
+} from "./upstreamErrors.js";
+import {
     SESSION_COOKIE,
     DEFAULT_TTL_MS,
     getCookieValue,
@@ -118,6 +123,12 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: "1mb" }));
+
+/* ===========================================================
+   SECURITY NOTE: upstream (provider) errors are sanitized with
+   readUpstreamJson()/handleUpstreamError() from upstreamErrors.js.
+   The server never returns provider internals to the client.
+=========================================================== */
 
 /* ===========================================================
    RATE LIMITING (in-memory, per IP)
@@ -384,15 +395,7 @@ app.post("/api/chat",
             }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                data.error?.message ||
-                data.message ||
-                "OpenRouter API Error"
-            );
-        }
+        const data = await readUpstreamJson(response);
 
         const content =
             data.choices?.[0]?.message?.content || "";
@@ -401,15 +404,10 @@ app.post("/api/chat",
 
     } catch (error) {
         console.error("Chat Error:", error.message);
-        if (error.name === "TimeoutError" || error.name === "AbortError") {
-            return res.status(504).json({
-                success: false,
-                error: "Upstream timed out. Please try again."
-            });
-        }
-        return res.status(500).json({
+        const safe = handleUpstreamError(error);
+        return res.status(safe.status).json({
             success: false,
-            error: error.message
+            error: safe.message
         });
     }
 });
@@ -434,7 +432,7 @@ app.post("/codex",
         console.error("Codex Error:", error.message);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: GENERIC_SERVER_ERROR
         });
     }
 });
@@ -480,9 +478,10 @@ app.get("/file",
         res.json({ success: true, path: filePath, content });
 
     } catch (error) {
+        console.error("File Error:", error.message);
         res.status(500).json({
             success: false,
-            error: error.message
+            error: GENERIC_SERVER_ERROR
         });
     }
 });
@@ -528,9 +527,10 @@ app.post("/codex/analyze-file",
         return res.json({ success: true, analysis });
 
     } catch (error) {
+        console.error("Analyze File Error:", error.message);
         return res.status(500).json({
             success: false,
-            error: error.message
+            error: GENERIC_SERVER_ERROR
         });
     }
 });
@@ -573,14 +573,7 @@ app.post("/generate-image",
             }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            return res.status(response.status).json({
-                success: false,
-                error: data.detail || data.title || "Replicate API Error"
-            });
-        }
+        const data = await readUpstreamJson(response);
 
         return res.json({
             success: true,
@@ -589,15 +582,11 @@ app.post("/generate-image",
         });
 
     } catch (error) {
-        if (error.name === "TimeoutError" || error.name === "AbortError") {
-            return res.status(504).json({
-                success: false,
-                error: "Upstream timed out. Please try again."
-            });
-        }
-        return res.status(500).json({
+        console.error("Image Generation Error:", error.message);
+        const safe = handleUpstreamError(error);
+        return res.status(safe.status).json({
             success: false,
-            error: error.message
+            error: safe.message
         });
     }
 });
@@ -622,27 +611,16 @@ app.get("/generate-image/:id",
             }
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            return res.status(response.status).json({
-                success: false,
-                error: data.detail || data.title || "Prediction Error"
-            });
-        }
+        const data = await readUpstreamJson(response);
 
         return res.json(data);
 
     } catch (error) {
-        if (error.name === "TimeoutError" || error.name === "AbortError") {
-            return res.status(504).json({
-                success: false,
-                error: "Upstream timed out. Please try again."
-            });
-        }
-        return res.status(500).json({
+        console.error("Prediction Error:", error.message);
+        const safe = handleUpstreamError(error);
+        return res.status(safe.status).json({
             success: false,
-            error: error.message
+            error: safe.message
         });
     }
 });

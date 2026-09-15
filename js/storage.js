@@ -4,13 +4,19 @@
    Description : Local Storage Manager
 =========================================================== */
 
-const STORAGE_KEYS = {
+/* Single canonical source for every storage key so no module
+   can drift onto a second, silently-invisible key. */
+export const STORAGE_KEYS = {
 
     CHATS: "ai_chat_chats",
 
     CURRENT_CHAT: "ai_chat_current_chat",
 
-    SETTINGS: "ai_chat_settings"
+    SETTINGS: "ai_chat_settings",
+
+    VOICE_SETTINGS: "voice-settings",
+
+    VOICE_MEMORY: "ai-chat-voice-memory"
 
 };
 

@@ -306,6 +306,15 @@ deleteChat(chatId) {
         this.state.messages = [];
 
 
+        if (this.storage) {
+
+
+            this.storage.setCurrentChat(null);
+
+
+        }
+
+
         if (this.ui) {
 
 

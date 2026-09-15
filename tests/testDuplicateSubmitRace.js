@@ -50,6 +50,7 @@ globalThis.document = {
 
 import { App } from "../js/app.js";
 import { Chat } from "../js/chat.js";
+import { UI } from "../js/ui.js";
 import Events from "../js/events.js";
 
 
@@ -381,6 +382,125 @@ async function testDifferentMessageNotBlocked() {
 }
 
 
+/* -----------------------------------------------------------
+   TEST 5 — SendInput regression: when a send is suppressed, the
+   user's typed text MUST stay in the composer. When accepted,
+   the composer is cleared exactly once.
+----------------------------------------------------------- */
+
+async function testSuppressedSendKeepsComposerInput() {
+
+    h.resetCalls();
+
+    const a = chat.createChat("Input Keep Chat");
+
+    let apiCalls = 0;
+
+    let failFirst = true;
+
+    app.api.sendWithRetry = async () => {
+        apiCalls++;
+        if (failFirst) {
+            failFirst = false;
+            throw new Error("fast failure");
+        }
+        return "<p>ok</p>";
+    };
+
+    const mockUi = {
+        elements: {
+            input: { value: "" },
+            sendButton: { disabled: false }
+        }
+    };
+
+    // First send is accepted after a fast, temporary failure.
+    mockUi.elements.input.value = "same typed text";
+    UI.prototype.sendInput.call(mockUi);
+
+    await settle();
+
+    assert(
+        "T5 first send accepted and composer cleared",
+        mockUi.elements.input.value === ""
+    );
+
+    assert(
+        "T5 first send stored once",
+        userMessages(store, a.id).length === 1
+    );
+
+    // User retypes the identical text inside the guard window.
+    mockUi.elements.input.value = "same typed text";
+
+    UI.prototype.sendInput.call(mockUi);
+
+    await settle();
+
+    assert(
+        "T5 suppressed send KEEPS composer input",
+        mockUi.elements.input.value === "same typed text"
+    );
+
+    assert(
+        "T5 duplicate NOT appended",
+        userMessages(store, a.id).length === 1
+    );
+
+    assert(
+        "T5 backend not contacted again",
+        apiCalls === 1
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 6 — Chat-scoped guard: an identical message sent in a
+   DIFFERENT chat inside the guard window is NOT blocked.
+----------------------------------------------------------- */
+
+async function testSameTextDifferentChatNotBlocked() {
+
+    h.resetCalls();
+
+    const a = chat.createChat("Chat A");
+
+    const b = chat.createChat("Chat B");
+
+    let apiCalls = 0;
+
+    app.api.sendWithRetry = async () => {
+        apiCalls++;
+        return "<p>ok</p>";
+    };
+
+    chat.openChat(a.id);
+
+    Events.emit("chat:send", "same text across chats");
+
+    await settle();
+
+    chat.openChat(b.id);
+
+    Events.emit("chat:send", "same text across chats");
+
+    await settle();
+
+    assert(
+        "T6 identical message accepted in different chat",
+        userMessages(store, a.id).length === 1 &&
+        userMessages(store, b.id).length === 1
+    );
+
+    assert(
+        "T6 backend contacted once per chat",
+        apiCalls === 2
+    );
+
+}
+
+
 await testSingleSubmission();
 
 await testRapidIdenticalDuplicateSuppressed();
@@ -388,6 +508,10 @@ await testRapidIdenticalDuplicateSuppressed();
 await testSameMessageAfterWindow();
 
 await testDifferentMessageNotBlocked();
+
+await testSuppressedSendKeepsComposerInput();
+
+await testSameTextDifferentChatNotBlocked();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

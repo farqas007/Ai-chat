@@ -516,7 +516,16 @@ console.log(
     this.voice.detector.detect(speechText)
 );
 
-this.voice.speak(speechText);
+// Only speak the reply when the sound setting is enabled.
+if (
+    speechText &&
+    this.settings &&
+    this.settings.get("sound")
+) {
+
+    this.voice.speak(speechText);
+
+}
 
 this.chat.endStreaming(
     assistant.id
@@ -525,11 +534,19 @@ this.chat.endStreaming(
 
                 }
 
-
-                catch(error){
+catch(error){
 
 
                     if (assistant) {
+
+
+                        // Hide the typing indicator and finalize the
+                        // streaming session before rolling back, so
+                        // the error path never leaves it stuck on.
+                        this.chat.endStreaming(
+                            assistant.id
+                        );
+
 
                         this.chat.rollbackEmptyMessage(
                             chatId,
@@ -668,20 +685,33 @@ Events.on(
     text=>{
 
 
+        // The guard is scoped per chat: an identical message sent
+        // from a DIFFERENT chat must never be blocked.
+        const chatId = this.chat && this.chat.state
+            ? this.chat.state.currentChatId
+            : null;
+
+
         if (this.state.sending) {
 
-            return;
+            // An AI request is already in flight. Do not start a
+            // second send, and do not swallow the user's text.
+            return false;
 
         }
 
 
         if (this._lastSendText === text &&
 
+            this._lastSendChatId === chatId &&
+
             this._lastSendAt !== null &&
 
             Date.now() - this._lastSendAt < 1000) {
 
-            return;
+            // Intentional duplicate-submit race suppression. The
+            // composer is left untouched so no input is lost.
+            return false;
 
         }
 
@@ -696,6 +726,8 @@ Events.on(
 
 
         this._lastSendText = text;
+
+        this._lastSendChatId = chatId;
 
         this._lastSendAt = Date.now();
 
@@ -736,6 +768,9 @@ Events.on(
             this.releaseSendLock();
 
         }
+
+
+        return true;
 
 
     }

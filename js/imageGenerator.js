@@ -60,26 +60,17 @@ export class ImageGenerator {
 
 
     /* =======================================================
-       AUTH HEADERS (optional bearer token for production)
+       AUTH HEADERS
+       Authentication is cookie-based (httpOnly SameSite strict).
+       No client-side token/Auth header is ever sent.
     ======================================================= */
 
 
     getAuthHeaders(){
 
-        const headers = {
+        return {
             "Content-Type": "application/json"
         };
-
-        const token =
-            window.AI_CHAT_TOKEN ||
-            localStorage.getItem("ai_chat_token") ||
-            "";
-
-        if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        return headers;
 
     }
 
@@ -109,9 +100,9 @@ async generate(prompt){
             }
         );
 
-        const data = await response.json();
+        const data = await this.readJsonResponse(response, "Image API Failed");
 
-        if (!response.ok || !data.success) {
+        if (!data.success) {
             const error = data.error || "Image API Failed";
             console.error("Image Server Error:", error);
             throw new Error(error);
@@ -156,6 +147,33 @@ async generate(prompt){
     }
 
 }
+
+/* =======================================================
+   SAFE JSON RESPONSE READER
+======================================================= */
+
+
+async readJsonResponse(response, fallbackMessage){
+
+    const text = await response.text();
+
+    let data = null;
+
+    try {
+        data = text ? JSON.parse(text) : null;
+    }
+    catch {
+        data = null;
+    }
+
+    if (!response.ok || !data) {
+        const error = (data && data.error) || fallbackMessage;
+        throw new Error(error);
+    }
+
+    return data;
+
+}
    /* =======================================================
    CHECK IMAGE STATUS
 ======================================================= */
@@ -163,58 +181,95 @@ async generate(prompt){
 
 async checkStatus(id){
 
-    try{
+    const response = await fetch(
+        `${this.config.endpoint}/${id}`,
+        { method: "GET", headers: this.getAuthHeaders() }
+    );
 
-        const response = await fetch(
-            `${this.config.endpoint}/${id}`,
-            { method: "GET", headers: this.getAuthHeaders() }
-        );
-
-        return await response.json();
-
-    }
-
-    catch(error){
-
-        throw error;
-
-    }
+    return this.readJsonResponse(response, "Failed to check image status");
 
 }
 
 /* =======================================================
    WAIT FOR IMAGE
+   Polls with a bounded timeout. The polling timer is
+   guaranteed to be cleared on success, failure, timeout
+   or destroy() — no interval is ever leaked.
 ======================================================= */
 
 
 async waitForImage(id){
 
+    this._stopPolling();
+
     return new Promise((resolve, reject)=>{
 
-        const timer = setInterval(async()=>{
+        const started = Date.now();
+        const timeout = this.config.pollTimeout ?? 120000;
+        const intervalMs = this.config.pollInterval ?? 2000;
+
+        this._pollResolve = (value)=>{
+            this._stopTimer();
+            this._pollResolve = null;
+            this._pollReject = null;
+            resolve(value);
+        };
+
+        this._pollReject = (error)=>{
+            this._stopTimer();
+            this._pollResolve = null;
+            this._pollReject = null;
+            reject(error);
+        };
+
+        this._pollTimer = setInterval(async ()=>{
+
+            if (Date.now() - started >= timeout) {
+                this._pollReject(new Error("Image generation timed out. Please try again."));
+                return;
+            }
 
             try {
 
                 const result = await this.checkStatus(id);
 
                 if (result.status === "succeeded") {
-                    clearInterval(timer);
-                    resolve(Array.isArray(result.output) ? result.output[0] : result.output);
+                    this._pollResolve(Array.isArray(result.output) ? result.output[0] : result.output);
                 }
 
                 if (result.status === "failed") {
-                    clearInterval(timer);
-                    reject("Image generation failed");
+                    this._pollReject(new Error("Image generation failed"));
                 }
 
             } catch (error) {
-                clearInterval(timer);
-                reject(error);
+                this._pollReject(error);
             }
 
-        }, 2000);
+        }, intervalMs);
 
     });
+
+}
+
+_stopTimer(){
+
+    if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+    }
+
+}
+
+_stopPolling(){
+
+    this._stopTimer();
+
+    if (this._pollReject) {
+        const reject = this._pollReject;
+        this._pollResolve = null;
+        this._pollReject = null;
+        reject(new Error("Image generation cancelled"));
+    }
 
 }
 
@@ -248,6 +303,8 @@ async waitForImage(id){
 
 
     destroy(){
+
+        this._stopPolling();
 
         this.clear();
 

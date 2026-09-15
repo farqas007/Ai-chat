@@ -45,23 +45,33 @@ export class Markdown {
         return text;
     }
 
-    // Agar AI ne HTML bheja hai to sanitize karke render karo
-    if (
-        text.includes("<h") ||
-        text.includes("<p") ||
-        text.includes("<ul") ||
-        text.includes("<li") ||
-        text.includes("<strong") ||
-        text.includes("<br")
-    ){
+    // If the AI deliberately returned structured HTML, sanitize
+    // and render it. Detection is TAG-COMPLETE — a real "<tag...>"
+    // — not a loose substring like "<p", which would also match
+    // "<pricing" or "<python".
+    if (this.looksLikeHTML(text)) {
         return this.sanitize(text);
     }
 
     let html = text;
 
-    html = this.escapeHTML(html);
+    // Protect fenced code blocks from every later transform so
+    // their line breaks survive. Copying a code block must return
+    // the original code, so the stored body keeps real "\n".
+    const blocks = [];
 
-    html = this.codeBlocks(html);
+    html = html.replace(
+        /```([a-zA-Z0-9_+#.\-]*)\s*\n?([\s\S]*?)```/g,
+        (match, language, code) => {
+            blocks.push({
+                language,
+                code: code.trim()
+            });
+            return `\u0000CODEBLOCK${blocks.length - 1}\u0000`;
+        }
+    );
+
+    html = this.escapeHTML(html);
 
     html = this.headings(html);
 
@@ -75,8 +85,49 @@ export class Markdown {
 
     html = this.newLines(html);
 
+    html = this.restoreCodeBlocks(html, blocks);
+
     return html;
 }
+
+    /* =======================================================
+       LOOKS LIKE HTML
+    ======================================================= */
+
+    // Returns true only when the text contains a complete,
+    // well-formed HTML tag (open, close or self-closing). This is
+    // deliberately strict: a bare prefix such as "<p" in
+    // "<pricing" must NOT be treated as HTML.
+    looksLikeHTML(text) {
+
+        return /<\/?[a-zA-Z][a-zA-Z0-9-]*(\s[^>]*)?\/?>/.test(
+            String(text)
+        );
+
+    }
+
+    /* =======================================================
+       RESTORE CODE BLOCKS
+    ======================================================= */
+
+    restoreCodeBlocks(html, blocks) {
+
+        return html.replace(
+            /\u0000CODEBLOCK(\d+)\u0000/g,
+            (match, index) => {
+
+                const item = blocks[Number(index)];
+
+                const language = item.language
+                    ? ` class="language-${item.language}"`
+                    : "";
+
+                return `<br><pre class="code-block"><code${language}>${this.escapeHTML(item.code)}</code></pre><br>`;
+
+            }
+        );
+
+    }
 
 
 
@@ -262,7 +313,10 @@ export class Markdown {
                     if (name === "class") {
                         const classes = String(attr.value || "")
                             .split(/\s+/)
-                            .filter(cls => ALLOWED_CLASSES.has(cls));
+                            .filter(cls =>
+                                ALLOWED_CLASSES.has(cls) ||
+                                /^language-/.test(cls)
+                            );
                         if (classes.length === 0) {
                             child.removeAttribute("class");
                         } else {
@@ -291,49 +345,7 @@ export class Markdown {
 
 
 
-
-    /* =======================================================
-       CODE BLOCKS
-    ======================================================= */
-
-
-    codeBlocks(text){
-
-
-        return text.replace(
-
-            /```([\s\S]*?)```/g,
-
-
-            (match,code)=>{
-
-
-                return `
-
-<pre class="code-block">
-
-<code>
-
-${code.trim()}
-
-</code>
-
-</pre>
-
-`;
-
-            }
-
-        );
-
-
-    }
-
-
-
-
-
-    /* =======================================================
+/* =======================================================
        HEADINGS
     ======================================================= */
 

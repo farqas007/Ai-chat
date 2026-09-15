@@ -4,11 +4,13 @@
    Description : Voice Memory Manager
 =========================================================== */
 
+import { STORAGE_KEYS } from "./storage.js";
+
 export class VoiceMemory {
 
     constructor(){
 
-        this.storageKey = "ai-chat-voice-memory";
+        this.storageKey = STORAGE_KEYS.VOICE_MEMORY;
 
         this.data = {
 

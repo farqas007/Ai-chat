@@ -47,6 +47,9 @@ export class CodeBlock {
         this.addCopyButtons();
 
 
+        this.addLanguageLabels();
+
+
         console.log(
 
             "Code Blocks Initialized"
@@ -329,6 +332,25 @@ export class CodeBlock {
                     );
 
 
+                const container =
+
+                    code.parentElement;
+
+
+                if(
+
+                    container.querySelector(
+
+                        ".code-language"
+
+                    )
+
+                ){
+
+                    return;
+
+                }
+
 
                 const label =
 
@@ -339,11 +361,9 @@ export class CodeBlock {
                     );
 
 
-
                 label.className =
 
                     "code-language";
-
 
 
                 label.textContent =
@@ -351,12 +371,12 @@ export class CodeBlock {
                     language;
 
 
-
-                code.parentElement.insertBefore(
+                container.insertBefore(
 
                     label,
 
                     code
+
 
                 );
 
@@ -460,6 +480,9 @@ export class CodeBlock {
 
 
         this.addCopyButtons();
+
+
+        this.addLanguageLabels();
 
 
     }

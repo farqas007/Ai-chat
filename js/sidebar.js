@@ -789,6 +789,43 @@ registerChatEvents() {
     );
 
 
+    Events.on(
+
+        "chat:title-updated",
+
+        chat => {
+
+
+            const item =
+
+                this.state.chats.find(
+
+                    c => c.id === chat.id
+
+                );
+
+
+
+            if (item) {
+
+
+                item.title = chat.title;
+
+                item.updatedAt = chat.updatedAt;
+
+
+            }
+
+
+
+            this.render();
+
+
+        }
+
+    );
+
+
 }
 
 /* =======================================================

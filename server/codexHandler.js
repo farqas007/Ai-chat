@@ -118,7 +118,11 @@ export async function handleCodexRequest(body, codex) {
                 status: 500,
                 json: {
                     success: false,
-                    error: error.message || "File operation failed"
+                    error: error.message === "File not found" ||
+                           error.message === "Invalid file path" ||
+                           error.message === "Sensitive path"
+                        ? error.message
+                        : "File operation failed"
                 }
             };
         }

@@ -9,6 +9,21 @@ import Events from "./events.js";
 
 
 /* ===========================================================
+   API ERROR
+=========================================================== */
+
+export class APIError extends Error {
+
+    constructor(status, message) {
+        super(message);
+        this.name = "APIError";
+        this.status = status || 0;
+    }
+
+}
+
+
+/* ===========================================================
    API MANAGER
 =========================================================== */
 
@@ -72,26 +87,127 @@ export class API {
 
 
     /* =======================================================
-       AUTH HEADERS (optional bearer token for production)
+       AUTH HEADERS
+       Authentication relies on the HttpOnly session cookie (or a
+       server-side token). The client never holds SERVER_API_TOKEN,
+       so no token is attached from JavaScript/localStorage here.
     ======================================================= */
 
 
     getAuthHeaders(){
 
-        const headers = {
+        return {
             "Content-Type": "application/json"
         };
 
-        const token =
-            window.AI_CHAT_TOKEN ||
-            localStorage.getItem("ai_chat_token") ||
-            "";
+    }
 
-        if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
+
+    /* =======================================================
+       READ RESPONSE
+       Always reads the body safely: JSON and non-JSON responses
+       are handled without uncontrolled parse errors, and the
+       HTTP status is checked before the payload is trusted.
+    ======================================================= */
+
+    async readJsonResponse(response) {
+
+        if (!response) {
+            throw new APIError(0, "No response from server.");
         }
 
-        return headers;
+        const contentType = response.headers.get("content-type") || "";
+
+        const isJson = contentType.includes("application/json");
+
+        if (!isJson) {
+
+            const text = await response.text().catch(() => "");
+
+            throw new APIError(
+                response.status,
+                this.messageForStatus(response.status)
+            );
+
+        }
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+
+            const serverMessage =
+                data &&
+                (data.error || data.message);
+
+            throw new APIError(
+                response.status,
+                serverMessage || this.messageForStatus(response.status)
+            );
+
+        }
+
+        return data;
+
+    }
+
+
+    /* =======================================================
+       STATUS MESSAGE
+       Clean user-facing fallback per status. Never echoes raw
+       provider internals.
+    ======================================================= */
+
+    messageForStatus(status) {
+
+        if (status === 401 || status === 403) {
+            return "Authentication failed. Please log in again.";
+        }
+
+        if (status === 429) {
+            return "Too many requests. Please wait a moment and try again.";
+        }
+
+        if (status >= 500) {
+            return "The server is temporarily unavailable. Please try again.";
+        }
+
+        if (status >= 400) {
+            return `Request failed (${status}). Please try again.`;
+        }
+
+        return "Request failed. Please try again.";
+
+    }
+
+
+    /* =======================================================
+       IS RETRYABLE
+       Retry only genuinely transient failures: network errors,
+       429 and 5xx. Never retry 4xx client errors, 401/403 auth
+       failures, or user-initiated aborts.
+    ======================================================= */
+
+    isRetryable(error) {
+
+        if (!error) {
+            return false;
+        }
+
+        if (error.name === "AbortError") {
+            return false;
+        }
+
+        if (error instanceof TypeError) {
+            // Network-level failure (fetch could not connect).
+            return true;
+        }
+
+        if (error.name === "APIError") {
+            const status = error.status;
+            return status === 429 || status >= 500;
+        }
+
+        return false;
 
     }
 
@@ -123,13 +239,12 @@ async sendMessage(message, history = []) {
             }
         );
 
-        const data = await response.json();
+        const data = await this.readJsonResponse(response);
 
-        if (!response.ok || !data.success) {
-            throw new Error(
-                data.error ||
-                data.message ||
-                "AI request failed"
+        if (data && data.success === false) {
+            throw new APIError(
+                response.status,
+                data.error || "AI request failed"
             );
         }
 
@@ -234,13 +349,51 @@ parseResponse(data) {
 /* =======================================================
    SEND WITH RETRY
 ======================================================= */
-async sendWithRetry(message, history = []){
+async sendWithRetry(message, history = [], options = {}){
 
-    const response = await this.sendMessage(message, history);
+    const maxRetries = options.retries ?? 2;
 
-    return this.parseResponse(response);
+    const baseDelay = options.delay ?? 800;
+
+    let attempt = 0;
+
+    for (;;) {
+
+        try {
+
+            const response = await this.sendMessage(message, history);
+
+            return this.parseResponse(response);
+
+        }
+        catch (error) {
+
+            const retryable = this.isRetryable(error);
+
+            if (!retryable || attempt >= maxRetries) {
+                throw error;
+            }
+
+            attempt++;
+
+            await this.delay(baseDelay * attempt);
+
+        }
+
+    }
 
 }
+
+
+    /* =======================================================
+       DELAY
+    ======================================================= */
+
+    delay(ms) {
+
+        return new Promise(resolve => setTimeout(resolve, ms));
+
+    }
 /* =======================================================
    TRACK USAGE
 ======================================================= */
@@ -289,10 +442,13 @@ async streamMessage(message, history = []){
             }
         );
 
-        const data = await response.json();
+        const data = await this.readJsonResponse(response);
 
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || "Stream request failed");
+        if (data && data.success === false) {
+            throw new APIError(
+                response.status,
+                data.error || "Stream request failed"
+            );
         }
 
         const content = this.parseResponse(data);

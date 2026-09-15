@@ -570,14 +570,22 @@ if(this.elements.imageButton){
 
 
 
-        this.elements.input.value = "";
+        // Emit first, clear only if the send was accepted. If the
+        // message was suppressed (e.g. duplicate-submit race), the
+        // user's typed text must stay in the composer.
+        const accepted = Events.emit(
 
+            "chat:send",
 
+            text
 
-    Events.emit(
-    "chat:send",
-    text
-);
+        );
+
+        if (accepted) {
+
+            this.elements.input.value = "";
+
+        }
 
     }
 

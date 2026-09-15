@@ -136,7 +136,47 @@ initialize() {
 
     }
 
+    // The player must use the CURRENT settings object, not the
+    // original literal captured in the constructor.
+    this.syncPlayerSettings();
+
+    // Keep settings (and the player binding) in sync when the
+    // voice settings UI saves changes.
+    Events.on(
+
+        "voice:settings:changed",
+
+        settings => {
+
+            this.settings = {
+
+                ...this.settings,
+
+                ...settings
+
+            };
+
+            this.syncPlayerSettings();
+
+        }
+
+    );
+
     console.log("Voice Initialized");
+
+}
+
+    /* =======================================================
+       SYNC PLAYER SETTINGS
+    ======================================================= */
+
+syncPlayerSettings() {
+
+    if (this.player) {
+
+        this.player.settings = this.settings;
+
+    }
 
 }
 
@@ -495,6 +535,9 @@ speak(text) {
         }
 
 
+        this.syncPlayerSettings();
+
+
     }
 
 
@@ -668,10 +711,6 @@ console.log(
 
             this.state.speaking = true;
 
-            Events.emit(
-                "voice:speak:start"
-            );
-
             console.log(
                 "Speech Started"
             );
@@ -683,10 +722,6 @@ console.log(
             this.state.speaking = false;
 
             this.queue.playing = false;
-
-            Events.emit(
-                "voice:speak:end"
-            );
 
             console.log(
                 "Speech Finished"
@@ -774,24 +809,29 @@ const words = [
 ];
 
 
-let count = 0;
+// Word-boundary match: substring hits such as "hai" inside
+// "shair" or "kyun" inside "skunked" must not count.
+const pattern =
+
+new RegExp(
+
+`\\b(?:${words.join("|")})\\b`,
+
+"gi"
+
+);
 
 
-words.forEach(word=>{
+const matches =
 
-if(
-text.toLowerCase()
-.includes(word)
-){
+typeof text === "string"
 
-count++;
+? text.match(pattern) || []
 
-}
-
-});
+: [];
 
 
-return count >= 2;
+return matches.length >= 2;
 
 }
 
