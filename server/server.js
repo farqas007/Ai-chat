@@ -16,6 +16,13 @@ import { isPublicPathname } from "./staticGuard.js";
 import { handleCodexRequest } from "./codexHandler.js";
 import { isSensitivePath } from "./pathGuard.js";
 import { resolveServerConfig } from "./serverConfig.js";
+import {
+    SESSION_COOKIE,
+    DEFAULT_TTL_MS,
+    getCookieValue,
+    createSessionStore,
+    loginResult
+} from "./sessionAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -61,6 +68,19 @@ if (AUTH_POLICY.isProduction && !API_TOKEN) {
         "Protected endpoints are disabled until a token is configured."
     );
 }
+
+// Browser sessions: in-memory map of HttpOnly cookie ids.
+// Server-side only; SERVER_API_TOKEN is never sent to the browser.
+const sessions = createSessionStore();
+
+// Cookie/HTTP attributes applied to the session cookie.
+const SESSION_COOKIE_OPTIONS = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    path: "/",
+    maxAge: DEFAULT_TTL_MS
+};
 
 // Comma-separated allowlist, e.g. CORS_ORIGIN=https://app.example.com,https://dev.example.com
 // Empty => same-origin requests only (no cross-origin website can call the API).
@@ -138,7 +158,8 @@ function rateLimit({ windowMs, max }) {
 
 const requireAuth = createRequireAuth({
     authDisabled: DEV_NO_AUTH,
-    apiToken: API_TOKEN
+    apiToken: API_TOKEN,
+    sessionStore: sessions
 });
 
 /* ===========================================================
@@ -176,6 +197,88 @@ app.get("/api/health", (req, res) => {
         server: "AI Chat Backend",
         status: "Running"
     });
+});
+
+/* ===========================================================
+   BROWSER SESSION AUTHENTICATION
+   SERVER_API_TOKEN stays server-side. The browser only ever
+   holds an HttpOnly session cookie, set after the user proves
+   knowledge of the token over same-origin HTTPS.
+=========================================================== */
+
+// Whether the current browser request carries a valid session cookie.
+// Public, minimal: returns ONLY { authenticated } - no tokens, ids,
+// expiry or server info. In dev no-auth mode it reports true so the
+// login overlay does not block local development.
+app.get("/api/session",
+    rateLimit({ windowMs: 60 * 1000, max: 60 }),
+    (req, res) => {
+
+        if (DEV_NO_AUTH) {
+            return res.json({ authenticated: true });
+        }
+
+        const sessionId = getCookieValue(
+            req.headers.cookie,
+            SESSION_COOKIE
+        );
+
+        res.json({
+            authenticated: sessionId ? sessions.get(sessionId) : false
+        });
+
+    });
+
+// Verify the submitted password against SERVER_API_TOKEN (timing-safe),
+// then hand out an HttpOnly session cookie. The password is transmitted
+// once over same-origin HTTPS and is never stored client-side.
+app.post("/api/login",
+    rateLimit({ windowMs: 60 * 1000, max: 10 }),
+    (req, res) => {
+
+        if (DEV_NO_AUTH) {
+            return res.json({ success: true });
+        }
+
+        const password =
+            req.body && typeof req.body.password === "string"
+                ? req.body.password
+                : "";
+
+        const result = loginResult(password, API_TOKEN, sessions);
+
+        if (!result.ok) {
+            return res.status(result.status).json({
+                success: false,
+                error: result.error
+            });
+        }
+
+        res.cookie(SESSION_COOKIE, result.sessionId, SESSION_COOKIE_OPTIONS);
+
+        res.json({ success: true });
+
+    });
+
+// Invalidate the browser session and clear the cookie.
+app.post("/api/logout", (req, res) => {
+
+    const sessionId = getCookieValue(
+        req.headers.cookie,
+        SESSION_COOKIE
+    );
+
+    if (sessionId) {
+        sessions.destroy(sessionId);
+    }
+
+    res.clearCookie(
+        SESSION_COOKIE,
+        { httpOnly: true, secure: true, sameSite: "strict", path: "/" }
+    );
+
+    res.json({ success: true });
+
 });
 
 /* ===========================================================

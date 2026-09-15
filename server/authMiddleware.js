@@ -6,6 +6,11 @@
 
 import crypto from "crypto";
 
+import {
+    SESSION_COOKIE,
+    getCookieValue
+} from "./sessionAuth.js";
+
 function safeEqual(a, b) {
     const bufferA = Buffer.from(String(a));
     const bufferB = Buffer.from(String(b));
@@ -21,7 +26,10 @@ function safeEqual(a, b) {
 //  - no token configured     -> 503 (fails closed)
 //  - wrong/missing token     -> 401
 //  - matching token          -> allow
-export function createRequireAuth({ authDisabled, apiToken }) {
+// An optional sessionStore additionally accepts a valid
+// browser session cookie (HttpOnly, cannot be read by JS).
+// The Bearer-token path is unchanged.
+export function createRequireAuth({ authDisabled, apiToken, sessionStore }) {
 
     return (req, res, next) => {
 
@@ -34,6 +42,16 @@ export function createRequireAuth({ authDisabled, apiToken }) {
                 success: false,
                 error: "SERVER_API_TOKEN is not configured. Set SERVER_API_TOKEN in production, or set ALLOW_NO_AUTH=true for local development only."
             });
+        }
+
+        if (sessionStore) {
+            const sessionId = getCookieValue(
+                req.headers.cookie,
+                SESSION_COOKIE
+            );
+            if (sessionId && sessionStore.get(sessionId)) {
+                return next();
+            }
         }
 
         const header = req.headers.authorization || "";

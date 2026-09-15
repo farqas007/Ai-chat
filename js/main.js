@@ -7,6 +7,8 @@ console.log("MAIN JS STARTED");
 
 import { App } from "./app.js";
 
+import { initAuth } from "./auth.js";
+
 console.log("MAIN.JS LOADED");
 
 /* ===========================================================
@@ -46,6 +48,8 @@ async function startApp() {
 
 
         await app.initialize();
+
+        await initAuth();
 
 
 

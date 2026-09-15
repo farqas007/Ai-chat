@@ -305,7 +305,8 @@ img{
 #voiceInputBtn,
 #sendBtn,
 #menuBtn,
-#themeToggle{
+#themeToggle,
+#logoutBtn{
 
     width:42px;
     height:42px;
@@ -326,7 +327,8 @@ img{
 #voiceInputBtn:hover,
 #sendBtn:hover,
 #menuBtn:hover,
-#themeToggle:hover{
+#themeToggle:hover,
+#logoutBtn:hover{
 
     background:var(--bg-hover);
 
@@ -385,6 +387,109 @@ img{
         box-shadow:0 0 0 6px rgba(59,130,246,0);
 
     }
+
+}
+
+
+/* ===========================================================
+   LOGIN OVERLAY
+=========================================================== */
+
+#loginOverlay{
+
+    position:fixed;
+    inset:0;
+    z-index:1000;
+
+    display:flex;
+    align-items:center;
+    justify-content:center;
+
+    background:var(--bg-primary);
+
+}
+
+
+.login-box{
+
+    width:min(360px, 90vw);
+
+    padding:32px 28px;
+
+    border-radius:var(--radius-medium);
+
+    background:var(--bg-tertiary);
+
+    text-align:center;
+
+    box-shadow:0 8px 30px rgba(0,0,0,.25);
+
+}
+
+
+.login-box h2{
+
+    margin:0 0 6px;
+
+}
+
+
+.login-box p{
+
+    margin:0 0 18px;
+
+    color:var(--text-secondary);
+
+}
+
+
+.login-box input{
+
+    width:100%;
+    box-sizing:border-box;
+
+    padding:10px 12px;
+    margin-bottom:12px;
+
+    border-radius:8px;
+
+    border:1px solid var(--text-secondary);
+
+    background:var(--bg-primary);
+
+    color:var(--text-primary);
+
+}
+
+
+.login-box button{
+
+    width:100%;
+
+    padding:10px 12px;
+
+    border:none;
+
+    border-radius:8px;
+
+    background:var(--accent);
+
+    color:var(--bg-primary);
+
+    cursor:pointer;
+
+}
+
+
+.login-error{
+
+    margin-top:12px;
+
+    min-height:18px;
+
+    color:#ef4444;
+
+    font-size:13px;
 
 }
 
