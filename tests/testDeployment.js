@@ -51,9 +51,11 @@ async function waitFor(condition, ms = 12000) {
 
     while (Date.now() - start < ms) {
 
-        if (await condition()) {
+        const result = await condition();
 
-            return true;
+        if (result) {
+
+            return result;
 
         }
 
@@ -61,7 +63,7 @@ async function waitFor(condition, ms = 12000) {
 
     }
 
-    return false;
+    return null;
 
 }
 
@@ -120,7 +122,7 @@ async function runLiveChecks() {
             PORT: "0",
             HOST: "127.0.0.1",
             NODE_ENV: "",
-            SERVER_API_TOKEN: "",
+            SERVER_API_TOKEN: "deployment-test-token-0000",
             ALLOW_NO_AUTH: "",
             CORS_ORIGIN: "https://app.example.com"
         };
@@ -156,6 +158,11 @@ async function runLiveChecks() {
         assert.ok(match, "server started and logged a bound port");
 
         const port = Number(match[1]);
+
+        assert.ok(
+            Number.isInteger(port) && port > 0,
+            `server logged a valid bound port (got: ${match[1]})`
+        );
 
         const base = `http://127.0.0.1:${port}`;
 

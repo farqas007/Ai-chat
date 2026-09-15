@@ -78,17 +78,6 @@ globalThis.SpeechSynthesisUtterance = function (text) {
 
     spoken.push(utterance);
 
-    setImmediate(() => {
-        if (utterance.onstart) {
-            utterance.onstart();
-        }
-        setImmediate(() => {
-            if (utterance.onend) {
-                utterance.onend();
-            }
-        });
-    });
-
     return utterance;
 
 };
@@ -110,22 +99,6 @@ function assert(name, condition) {
         failed.push(name);
         console.log(`FAIL: ${name}`);
     }
-}
-
-function settle(ms = 40) {
-    return new Promise(r => setTimeout(r, ms));
-}
-
-function countEmissions(label) {
-    return new Promise(resolve => {
-        let n = 0;
-        const handler = () => { n++; };
-        Events.on(label, handler);
-        setTimeout(() => {
-            Events.off(label, handler);
-            resolve(n);
-        }, 30);
-    });
 }
 
 
@@ -196,19 +169,34 @@ async function testSingleLifecycleEvents() {
 
     const voice = new Voice();
 
-    await settle(5);
+    let started = 0;
+    let ended = 0;
 
-    const startCount = countEmissions("voice:speak:start");
-    const endCount = countEmissions("voice:speak:end");
+    const onStart = () => { started++; };
+    const onEnd = () => { ended++; };
+
+    Events.on("voice:speak:start", onStart);
+    Events.on("voice:speak:end", onEnd);
 
     const before = spoken.length;
 
     voice.speak("Assalam o Alaikum. Sab kuch theek hai.");
 
-    await settle(60);
+    /* The queue advances only through lifecycle callbacks, so driving
+       each utterance's onstart/onend is fully deterministic. */
+    for (let i = before; i < spoken.length; i++) {
 
-    const started = await startCount;
-    const ended = await endCount;
+        if (spoken[i].onstart) {
+            spoken[i].onstart();
+        }
+        if (spoken[i].onend) {
+            spoken[i].onend();
+        }
+
+    }
+
+    Events.off("voice:speak:start", onStart);
+    Events.off("voice:speak:end", onEnd);
 
     assert(
         "F6 one voice:speak:start per chunk",
@@ -250,11 +238,7 @@ async function testSpeakThrowRecoversQueue() {
 
     Events.on("voice:speak:error", handler);
 
-    await settle(5);
-
     voice.speak("First sentence. Second sentence.");
-
-    await settle(60);
 
     assert(
         "F7 every failed chunk reported as speech error",
@@ -290,8 +274,6 @@ async function testPlayerSpeakThrowCallsOnError() {
         onError: error => { called = error; }
     });
 
-    await settle(10);
-
     assert(
         "F7 player reports synchronous speak failure via onError",
         called && called.message === "boom failure"
@@ -316,15 +298,19 @@ async function testPlayerSpeakThrowEmitsEvent() {
 
     speakImpl = () => { throw new Error("raw failure"); };
 
-    const count = countEmissions("voice:speak:error");
+    let count = 0;
+
+    const handler = () => { count++; };
+
+    Events.on("voice:speak:error", handler);
 
     player.play({ text: "test", onStart: () => {}, onEnd: () => {} });
 
-    const n = await count;
+    Events.off("voice:speak:error", handler);
 
     assert(
         "F7 player fallback emits voice:speak:error when no onError",
-        n === 1
+        count === 1
     );
 
     speakImpl = null;
