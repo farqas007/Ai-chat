@@ -213,6 +213,18 @@ async function runLiveChecks() {
         assert.ok(protectedRes.status >= 400 && protectedRes.status < 500);
         assert.strictEqual((await protectedRes.json()).success, false);
 
+        /* Streaming mode fails closed without a token too. */
+
+        const streamRes = await fetch(`${base}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: "hello", stream: true })
+        });
+
+        assert.notStrictEqual(streamRes.status, 200);
+        assert.ok(streamRes.status >= 400 && streamRes.status < 500);
+        assert.strictEqual((await streamRes.json()).success, false);
+
         /* Unknown API route 404s safely. */
 
         assert.strictEqual(

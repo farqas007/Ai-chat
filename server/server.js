@@ -14,6 +14,7 @@ import { resolveAuthPolicy } from "./authPolicy.js";
 import { createRequireAuth } from "./authMiddleware.js";
 import { isPublicPathname } from "./staticGuard.js";
 import { handleCodexRequest } from "./codexHandler.js";
+import { handleStreamChat } from "./streamChat.js";
 import { isSensitivePath } from "./pathGuard.js";
 import { resolveServerConfig } from "./serverConfig.js";
 import {
@@ -374,6 +375,19 @@ app.post("/api/chat",
                 success: false,
                 error: "Message is required."
             });
+        }
+
+        // Secure streaming mode: req.body.stream === true responds
+        // with a normalized SSE stream (server/streamChat.js). The
+        // JSON branch below is untouched and remains the default.
+        if (req.body.stream === true) {
+            handleStreamChat(req, res, {
+                openrouterKey: OPENROUTER_KEY,
+                systemPrompt: SYSTEM_PROMPT
+            }).catch(error => {
+                console.error("Stream Chat Error:", error && error.message);
+            });
+            return;
         }
 
         const messages = [
