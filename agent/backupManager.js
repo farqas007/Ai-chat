@@ -1,9 +1,10 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 export class BackupManager {
 
-    constructor(directory = "./backups") {
+    constructor(directory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "backups")) {
 
         this.directory = directory;
 

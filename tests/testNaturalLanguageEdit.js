@@ -209,6 +209,51 @@ assert(
     fs.existsSync(path.join(root, "generated-project", "login.html"))
 );
 
+// 11. Unmatched generation task: must NOT report success, must not touch disk.
+function listTree(dir) {
+    const out = [];
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) out.push(...listTree(p));
+        else out.push(p);
+    }
+    return out.sort();
+}
+
+const filesBefore = listTree(root);
+const unmatchedGraph = await agent.run(
+    "Explain the theory of relativity in simple terms"
+);
+const unmatchedCreate = unmatchedGraph.find(
+    s => s.type === "file" && s.action === "create"
+);
+assert(
+    "unmatched task: file create step failed",
+    unmatchedCreate && unmatchedCreate.status === "failed"
+);
+assert(
+    "unmatched task: clear error on file create",
+    unmatchedCreate.result &&
+    unmatchedCreate.result.success === false &&
+    typeof unmatchedCreate.result.error === "string" &&
+    unmatchedCreate.result.error.length > 0
+);
+
+const unmatchedOutcome = await handleCodexRequest(
+    { task: "Explain the theory of relativity in simple terms" },
+    agent
+);
+assert(
+    "handler: unmatched generation never reports success",
+    unmatchedOutcome.status === 400 &&
+    unmatchedOutcome.json.success === false &&
+    unmatchedOutcome.json.error === "Task could not be completed"
+);
+assert(
+    "unmatched task: no files created or modified",
+    JSON.stringify(filesBefore) === JSON.stringify(listTree(root))
+);
+
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);
 

@@ -16,6 +16,7 @@
 =========================================================== */
 
 import { ImageGenerator } from "../js/imageGenerator.js";
+import Events from "../js/events.js";
 
 
 const passed = [];
@@ -293,6 +294,220 @@ await testFailedPoll();
 await testTimeout();
 
 await testDestroyCancelsPoll();
+
+
+/* -----------------------------------------------------------
+   TEST 8 — F2: transient polling failures are retried and do
+   NOT abort immediately; success still resolves.
+----------------------------------------------------------- */
+
+async function testTransientPollRetry() {
+
+    let calls = 0;
+
+    const generator = createGenerator(async () => {
+
+        calls++;
+
+        if (calls <= 2) {
+
+            throw new Error("network blip");
+
+        }
+
+        return mockResponse({
+            body: { status: "succeeded", output: ["https://img/retried.png"] }
+        });
+
+    }, { pollRetries: 3 });
+
+    const url = await generator.waitForImage("pred-8");
+
+    assert(
+        "T8 transient failures retried then resolved",
+        url === "https://img/retried.png"
+    );
+
+    assert(
+        "T8 retry actually occurred (3+ polls)",
+        calls >= 3
+    );
+
+    assert(
+        "T8 no timer leaked after retry success",
+        generator._pollTimer === null
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 9 — F2: retry is bounded; exhausting retries surfaces
+   the polling error instead of polling forever.
+----------------------------------------------------------- */
+
+async function testBoundedTransientRetry() {
+
+    let calls = 0;
+
+    const generator = createGenerator(async () => {
+
+        calls++;
+
+        throw new Error("always down");
+
+    }, { pollRetries: 2 });
+
+    const error = await expectThrows(generator.waitForImage("pred-9"));
+
+    assert(
+        "T9 persistent failure rejects after bounded retries",
+        error && error.message === "always down"
+    );
+
+    assert(
+        "T9 bounded: exactly maxRetries+1 polls",
+        calls === 3
+    );
+
+    assert(
+        "T9 no timer leaked after bounded rejection",
+        generator._pollTimer === null
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 10 — F2: successful generate() drives loading state and
+   fires the full start->created->end event contract.
+----------------------------------------------------------- */
+
+async function testSuccessLoadingAndEvents() {
+
+    const events = { start: false, created: null, end: false };
+
+    const onStart = () => { events.start = true; };
+    const onCreate = img => { events.created = img; };
+    const onEnd = () => { events.end = true; };
+
+    Events.on("image:start", onStart);
+    Events.on("image:created", onCreate);
+    Events.on("image:end", onEnd);
+
+    const loadingDuringPost = [];
+
+    const generator = createGenerator(async (url, opts) => {
+
+        if (opts && opts.method === "POST") {
+
+            loadingDuringPost.push(generator.state.loading);
+
+            return mockResponse({ body: { success: true, id: "pred-10" } });
+
+        }
+
+        return mockResponse({
+            body: { status: "succeeded", output: ["https://img/success.png"] }
+        });
+
+    });
+
+    const image = await generator.generate("a cactus");
+
+    assert(
+        "T10 loading true while the POST request is in-flight",
+        loadingDuringPost[0] === true
+    );
+
+    assert(
+        "T10 image:start fired",
+        events.start === true
+    );
+
+    assert(
+        "T10 resolve returned the image URL",
+        image && image.url === "https://img/success.png"
+    );
+
+    assert(
+        "T10 image:created fired with the generated image",
+        events.created && events.created.id === image.id
+    );
+
+    assert(
+        "T10 image:end fired",
+        events.end === true
+    );
+
+    assert(
+        "T10 loading cleared after success",
+        generator.state.loading === false
+    );
+
+    Events.off("image:start", onStart);
+    Events.off("image:created", onCreate);
+    Events.off("image:end", onEnd);
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 11 — F2: generate() failure clears the loading state and
+   still fires image:end (finally) plus the error event.
+----------------------------------------------------------- */
+
+async function testFailureClearsLoading() {
+
+    const events = { errors: [], ends: 0 };
+
+    const onError = err => { events.errors.push(err); };
+    const onEnd = () => { events.ends++; };
+
+    Events.on("image:error", onError);
+    Events.on("image:end", onEnd);
+
+    const generator = createGenerator(async () => mockResponse({
+        status: 500,
+        body: { success: false, error: "provider boom" }
+    }));
+
+    const error = await expectThrows(generator.generate("a dog"));
+
+    assert(
+        "T11 failure surfaces a clean error",
+        error && error.message === "provider boom"
+    );
+
+    assert(
+        "T11 loading cleared after failure",
+        generator.state.loading === false
+    );
+
+    assert(
+        "T11 image:error fired",
+        events.errors.length === 1 &&
+        events.errors[0].message === "provider boom"
+    );
+
+    assert(
+        "T11 image:end still fired in finally",
+        events.ends === 1
+    );
+
+    Events.off("image:error", onError);
+    Events.off("image:end", onEnd);
+
+}
+
+
+await testTransientPollRetry();
+
+await testBoundedTransientRetry();
+
+await testSuccessLoadingAndEvents();
+
+await testFailureClearsLoading();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

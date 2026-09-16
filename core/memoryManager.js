@@ -1,8 +1,10 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 export class MemoryManager {
 
-    constructor(file = "./memory.json") {
+    constructor(file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "memory.json")) {
 
         this.file = file;
 

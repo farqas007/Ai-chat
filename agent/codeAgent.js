@@ -198,6 +198,17 @@ this.taskGraph.complete(step);
 
     const generated = this.generate(step.task);
 
+    if (!generated || Object.keys(generated).length === 0) {
+
+        console.log("No files generated for task");
+
+        return {
+            success: false,
+            error: "Could not generate code for this task"
+        };
+
+    }
+
     const plan = this.filePlanner.plan(generated);
 
     console.log("File Plan");

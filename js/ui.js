@@ -563,6 +563,16 @@ if(this.elements.imageButton){
         ){
 
 
+            // A send is already in flight. Keep the user's text in
+            // the composer so it is never lost, and refocus it so
+            // the user can see it is still there.
+            if (this.elements.input && this.elements.input.focus) {
+
+                this.elements.input.focus();
+
+            }
+
+
             return;
 
 
@@ -571,8 +581,9 @@ if(this.elements.imageButton){
 
 
         // Emit first, clear only if the send was accepted. If the
-        // message was suppressed (e.g. duplicate-submit race), the
-        // user's typed text must stay in the composer.
+        // message was suppressed (e.g. duplicate-submit race or a
+        // send already in progress), the user's typed text must
+        // stay in the composer.
         const accepted = Events.emit(
 
             "chat:send",
@@ -584,6 +595,13 @@ if(this.elements.imageButton){
         if (accepted) {
 
             this.elements.input.value = "";
+
+        }
+        else if (this.elements.input && this.elements.input.focus) {
+
+            // Suppressed: keep the input and refocus it so the text
+            // is visible and can be sent once the send finishes.
+            this.elements.input.focus();
 
         }
 

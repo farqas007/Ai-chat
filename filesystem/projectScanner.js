@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 
 const ignore = [
@@ -14,7 +15,7 @@ const ignore = [
 export class ProjectScanner {
 
 
-    constructor(root = ".") {
+    constructor(root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")) {
 
         this.root = root;
 

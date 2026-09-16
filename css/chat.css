@@ -134,6 +134,23 @@
 
 }
 
+/* Persisted generated-image messages are rendered as a plain <img>
+   inside message-content; size it like .generated-image. */
+
+.message-content img{
+
+    max-width:400px;
+
+    max-height:400px;
+
+    border-radius:16px;
+
+    margin-top:10px;
+
+    display:block;
+
+}
+
 
 /* ===========================================================
    HEADINGS

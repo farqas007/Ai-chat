@@ -207,6 +207,8 @@ async waitForImage(id){
         const started = Date.now();
         const timeout = this.config.pollTimeout ?? 120000;
         const intervalMs = this.config.pollInterval ?? 2000;
+        const maxRetries = this.config.pollRetries ?? 3;
+        let consecutiveFailures = 0;
 
         this._pollResolve = (value)=>{
             this._stopTimer();
@@ -233,6 +235,8 @@ async waitForImage(id){
 
                 const result = await this.checkStatus(id);
 
+                consecutiveFailures = 0;
+
                 if (result.status === "succeeded") {
                     this._pollResolve(Array.isArray(result.output) ? result.output[0] : result.output);
                 }
@@ -242,7 +246,14 @@ async waitForImage(id){
                 }
 
             } catch (error) {
-                this._pollReject(error);
+                // Transient polling/network errors are tolerated up to a
+                // bounded retry count; only then is the failure surfaced.
+                // The overall poll timeout still caps the total wait.
+                consecutiveFailures += 1;
+
+                if (consecutiveFailures > maxRetries) {
+                    this._pollReject(error);
+                }
             }
 
         }, intervalMs);

@@ -1,9 +1,11 @@
 import fs from "fs";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
 
 export class SessionManager {
 
-    constructor(directory = "./sessions") {
+    constructor(directory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "sessions")) {
 
         this.directory = directory;
 

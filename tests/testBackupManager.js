@@ -1,32 +1,79 @@
-import fs from "fs";
+import assert from "node:assert";
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
 import { BackupManager } from "../agent/backupManager.js";
 
-const manager = new BackupManager();
 
-fs.writeFileSync(
-    "backup-test.txt",
-    "Hello World"
-);
+const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "testBackup-"));
 
-const backup = manager.backup(
-    "backup-test.txt"
-);
+const workDir = path.join(tmpBase, "work");
 
-console.log("Backup:", backup);
+fs.mkdirSync(workDir, { recursive: true });
 
-fs.writeFileSync(
-    "backup-test.txt",
-    "Modified"
-);
+const backupDir = path.join(tmpBase, "backups");
 
-manager.restore(
-    backup,
-    "backup-test.txt"
-);
+const file = path.join(workDir, "hello.txt");
 
-console.log(
-    fs.readFileSync(
-        "backup-test.txt",
-        "utf8"
-    )
-);
+const original = "Hello World";
+
+fs.writeFileSync(file, original, "utf8");
+
+
+try {
+
+    const manager = new BackupManager(backupDir);
+
+    const backupPath = manager.backup(file);
+
+    assert.ok(
+        backupPath,
+        "backup must return a destination path"
+    );
+
+    assert.ok(
+        fs.existsSync(backupPath),
+        "backup file must exist"
+    );
+
+    assert.strictEqual(
+        fs.readFileSync(backupPath, "utf8"),
+        original,
+        "backup file must contain the original content"
+    );
+
+
+    fs.writeFileSync(file, "Modified", "utf8");
+
+    assert.strictEqual(
+        fs.readFileSync(file, "utf8"),
+        "Modified",
+        "original must be modified before restore"
+    );
+
+
+    manager.restore(backupPath, file);
+
+    assert.strictEqual(
+        fs.readFileSync(file, "utf8"),
+        original,
+        "restore must bring back the backed-up content"
+    );
+
+
+    assert.ok(
+        backupPath.startsWith(backupDir),
+        "backup must live inside the configured backup directory"
+    );
+
+
+    console.log("PASS: backup copies file content; restore recovers the original");
+
+}
+finally {
+
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+
+}

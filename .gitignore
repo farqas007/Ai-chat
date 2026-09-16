@@ -10,3 +10,10 @@ memory.json
 memory/*.json
 server/memory.json
 backups/
+sessions/
+
+# Backups created by the code agent / backup manager (e.g. *.bak).
+*.bak
+
+# Agent "create" task output (CodeAgent -> FilePlanner).
+generated-project/

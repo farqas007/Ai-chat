@@ -276,6 +276,13 @@ Events.on(
     async prompt => {
 
 
+        if (this.imageGenerator.state.loading) {
+
+            return;
+
+        }
+
+
         try{
 
 
@@ -326,7 +333,91 @@ Events.on(
 
     image=>{
 
-        this.ui.showGeneratedImage(image);
+        if (!image || typeof image.url !== "string" || !/^https?:\/\//i.test(image.url)) {
+
+            return;
+
+        }
+
+
+        const content =
+
+            '<img src="' +
+
+            image.url.replace(/"/g, "&quot;") +
+
+            '" alt="Generated image">';
+
+
+        const persisted =
+
+            this.chat &&
+
+            this.chat.addMessage(
+
+                "assistant",
+
+                content
+
+            );
+
+
+        if (!persisted) {
+
+            this.ui.showGeneratedImage(image);
+
+        }
+
+    }
+
+);
+
+
+Events.on(
+
+    "image:start",
+
+    ()=>{
+
+        this.ui.showTyping(true);
+
+        this.toggleImageButton(false);
+
+    }
+
+);
+
+
+Events.on(
+
+    "image:end",
+
+    ()=>{
+
+        this.ui.showTyping(false);
+
+        this.toggleImageButton(true);
+
+    }
+
+);
+
+
+Events.on(
+
+    "image:error",
+
+    error=>{
+
+        this.ui.showTyping(false);
+
+        this.ui.showError(
+
+            (error && (error.message || error)) ||
+
+            "Image generation failed"
+
+        );
 
     }
 
@@ -391,10 +482,16 @@ Events.on(
 
             "chat:selected",
 
-            chatId => {
+            payload => {
 
 
-                if (typeof chatId !== "string") {
+                // Sidebar emits a string chat id. Chat.openChat()
+                // also re-emits chat:selected with a chat OBJECT for
+                // the chat it just opened — that chat is already
+                // current by definition, so only the string form
+                // needs to be handled here (the sidebar consumes the
+                // object form for highlight purposes).
+                if (typeof payload !== "string") {
 
                     return;
 
@@ -403,7 +500,7 @@ Events.on(
 
                 this.chat.openChat(
 
-                    chatId
+                    payload
 
                 );
 
@@ -1304,6 +1401,23 @@ Events.on(
         if (this.ui) {
 
             this.ui.setSending(false);
+
+        }
+
+    }
+
+
+    /* =======================================================
+       IMAGE BUTTON LOCK
+       Prevents duplicate image generations while one is active.
+    ======================================================= */
+
+
+    toggleImageButton(active){
+
+        if (this.ui && this.ui.elements && this.ui.elements.imageButton) {
+
+            this.ui.elements.imageButton.disabled = !active;
 
         }
 

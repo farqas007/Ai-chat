@@ -1,9 +1,10 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
 export class ProjectIndexer {
 
-    constructor(root = ".") {
+    constructor(root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")) {
         this.root = root;
     }
 

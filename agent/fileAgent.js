@@ -1,10 +1,11 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { PatchEngine } from "./patchEngine.js";
 
 export class FileAgent {
 
-    constructor(root = ".") {
+    constructor(root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")) {
 
         this.root = root;
 
