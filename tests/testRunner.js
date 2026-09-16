@@ -79,7 +79,9 @@ const REAL_TESTS = [
     "tests/testVoiceComposer.js",
     "tests/testVoiceFixes.js",
     "tests/testVoiceInput.js",
-    "tests/testVoiceSettings.js"
+    "tests/testVoiceSettings.js",
+    "tests/testWorkerSessionAuth.js",
+    "tests/testWorkerStreamChat.js"
 ];
 
 

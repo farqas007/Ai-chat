@@ -1,0 +1,47 @@
+{
+  // ===========================================================
+  //  Cloudflare Workers target (SEPARATE from the Node server).
+  //
+  //  Deploy with:   npx wrangler deploy
+  //  Local dev:     npx wrangler dev
+  //
+  //  This Worker serves the frontend via Static Assets and the
+  //  portable API surface via Express (cloudflare:node adapter).
+  //  It does NOT run the CodeAgent/codex/file/terminal features.
+  //
+  //  Secrets are NEVER stored here. Configure them with:
+  //    npx wrangler secret put SERVER_API_TOKEN
+  //    npx wrangler secret put SESSION_SECRET
+  //    npx wrangler secret put OPENROUTER_API_KEY
+  //    npx wrangler secret put REPLICATE_API_KEY
+  //  For `wrangler dev`, place them in an untracked .dev.vars file.
+  // ===========================================================
+
+  "$schema": "node_modules/wrangler/config-schema.json",
+
+  "name": "ai-chat",
+
+  "main": "worker/index.js",
+
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": [
+      "/api/*",
+      "/generate-image",
+      "/generate-image/*"
+    ]
+  },
+
+  "vars": {
+    "NODE_ENV": "production",
+    "CORS_ORIGIN": ""
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

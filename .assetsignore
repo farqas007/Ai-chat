@@ -1,0 +1,47 @@
+# ===========================================================
+#  Workers Static Assets allowlist.
+#
+#  The asset directory is the repo root, so we must explicitly
+#  ignore EVERYTHING that is not a public frontend file. Only
+#  index.html, css/, and js/ are intended to be published.
+#
+#  Never expose: server/agent/core/filesystem/memory/editor/
+#  terminal/tests/worker sources, backups, sessions, env files,
+#  package manifests, or this repo's tooling.
+# ===========================================================
+
+.git/
+.github/
+node_modules/
+.wrangler/
+
+server/
+agent/
+core/
+filesystem/
+memory/
+editor/
+terminal/
+tests/
+backups/
+sessions/
+worker/
+
+*.md
+*.bak
+*.log
+
+.env
+.env.*
+.dev.vars
+
+package.json
+package-lock.json
+wrangler.jsonc
+wrangler.toml
+eslint.config.js
+
+.gitignore
+.assetsignore
+
+memory.json

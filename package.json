@@ -6,11 +6,16 @@
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node tests/testRunner.js"
+    "test": "node tests/testRunner.js",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler deploy"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.44.0"
   }
 }

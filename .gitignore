@@ -17,3 +17,7 @@ sessions/
 
 # Agent "create" task output (CodeAgent -> FilePlanner).
 generated-project/
+
+# Cloudflare Workers (separate deployment target).
+.wrangler/
+.dev.vars
