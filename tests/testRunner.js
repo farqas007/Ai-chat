@@ -82,6 +82,7 @@ const REAL_TESTS = [
     "tests/testVoiceFixes.js",
     "tests/testVoiceInput.js",
     "tests/testVoiceSettings.js",
+    "tests/testVoiceProviderFallback.js",
     "tests/testWorkerSecurity.js",
     "tests/testWorkerSessionAuth.js",
     "tests/testWorkerStreamChat.js"

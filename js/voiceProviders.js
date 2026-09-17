@@ -4,6 +4,8 @@
    Description : Voice Providers Manager
 =========================================================== */
 
+import Events from "./events.js";
+
 export class VoiceProviders {
 
     constructor(){
@@ -15,6 +17,23 @@ export class VoiceProviders {
     this.providers = [
 
         "browser",
+
+        "google",
+
+        "azure",
+
+        "elevenlabs",
+
+        "openai"
+
+    ];
+
+    /* Providers that are selectable in the UI but have no
+       connected backend. Selecting one must NOT become the
+       active provider — the safe default (browser TTS) stays
+       active and a voice:provider:unavailable event is emitted. */
+
+    this.unavailableProviders = [
 
         "google",
 
@@ -38,6 +57,29 @@ export class VoiceProviders {
 
   setProvider(name){
 
+    /* Unavailable providers (google/azure/elevenlabs/openai) must
+       never become the active provider, even if a call site tries
+       to restore one from previously persisted settings. */
+    if(this.isUnavailable(name)){
+
+        console.warn(
+            "Voice provider unavailable:",
+            name,
+            "— keeping browser as the active provider."
+        );
+
+        Events.emit(
+            "voice:provider:unavailable",
+            {
+                name,
+                fallbackTo: "browser"
+            }
+        );
+
+        return false;
+
+    }
+
     if(this.hasProvider(name)){
 
         this.provider = name;
@@ -47,6 +89,8 @@ export class VoiceProviders {
             name
         );
 
+        return true;
+
     }
     else{
 
@@ -54,6 +98,8 @@ export class VoiceProviders {
             "Unknown provider:",
             name
         );
+
+        return false;
 
     }
 
@@ -70,10 +116,51 @@ export class VoiceProviders {
     }
 
     /* =======================================================
+       IS UNAVAILABLE
+       A stub provider (google / azure / elevenlabs / openai)
+       has no connected backend yet. It must never become the
+       active provider.
+    ======================================================= */
+
+    isUnavailable(name) {
+
+        return this.unavailableProviders.includes(name);
+
+    }
+
+    /* =======================================================
        SPEAK
     ======================================================= */
 
     async speak(options) {
+
+        /* Defensive safety net: if an unavailable provider
+           somehow exists as the active provider (e.g. from an
+           old persisted state), it must not silently fall back
+           to browser TTS or crash. Reset it to browser and
+           surface the event instead. */
+        if (
+            this.isUnavailable(
+                this.provider
+            )
+        ) {
+
+            console.warn(
+                "Rejecting unavailable provider:",
+                this.provider
+            );
+
+            Events.emit(
+                "voice:provider:unavailable",
+                {
+                    name: this.provider,
+                    fallbackTo: "browser"
+                }
+            );
+
+            this.provider = "browser";
+
+        }
 
         switch(this.provider){
 
@@ -137,15 +224,17 @@ export class VoiceProviders {
     /* =======================================================
        GOOGLE TTS
     ======================================================= */
-async google(options){
+    async google(options){
 
-    console.warn(
-    "Google TTS not connected."
-);
+        console.warn(
+            "Google TTS not connected."
+        );
 
-return this.browser(options);
+        /* No silent fallback: an unavailable provider must never
+           play through the browser player behind the scenes. */
+        return false;
 
-}
+    }
 
     /* =======================================================
        AZURE TTS
@@ -157,7 +246,9 @@ return this.browser(options);
             "Azure TTS not connected."
         );
 
-        return this.browser(options);
+        /* No silent fallback: an unavailable provider must never
+           play through the browser player behind the scenes. */
+        return false;
 
     }
 
@@ -168,10 +259,12 @@ return this.browser(options);
     async elevenLabs(options){
 
         console.warn(
-            "ElevenLabs not connected."
+            "ElevenLabs TTS not connected."
         );
 
-        return this.browser(options);
+        /* No silent fallback: an unavailable provider must never
+           play through the browser player behind the scenes. */
+        return false;
 
     }
 
@@ -185,7 +278,9 @@ return this.browser(options);
             "OpenAI TTS not connected."
         );
 
-        return this.browser(options);
+        /* No silent fallback: an unavailable provider must never
+           play through the browser player behind the scenes. */
+        return false;
 
     }
 
