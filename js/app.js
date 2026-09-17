@@ -1143,6 +1143,141 @@ Events.on(
         );
 
 
+        /*
+           Chat Export
+        */
+
+
+        Events.on(
+
+            "chat:export",
+
+            ()=>{
+
+
+                const json = this.chat && this.chat.exportChat
+
+                    ? this.chat.exportChat()
+
+                    : null;
+
+
+                if(!json){
+
+
+                    if (this.ui) {
+
+                        this.ui.showError("No active chat to export");
+
+                    }
+
+
+                    return;
+
+                }
+
+
+                const chatId = (() => {
+
+                    try {
+
+                        return JSON.parse(json).id;
+
+                    } catch (error) {
+
+                        return "chat";
+
+                    }
+
+                })();
+
+
+                const blob = new Blob(
+
+                    [json],
+
+                    {
+
+                        type: "application/json"
+
+                    }
+
+                );
+
+
+                const url = URL.createObjectURL(blob);
+
+
+                const link = document.createElement("a");
+
+
+                link.href = url;
+
+
+                link.download = `chat-${chatId}.json`;
+
+
+                link.click();
+
+
+                URL.revokeObjectURL(url);
+
+
+            }
+
+        );
+
+
+        /*
+           Chat Import
+        */
+
+
+        Events.on(
+
+            "chat:import-file",
+
+            text=>{
+
+
+                if (!this.chat || !this.chat.importChat) {
+
+                    return;
+
+                }
+
+
+                const imported = this.chat.importChat(text);
+
+
+                if (imported) {
+
+                    this.chat.openChat(imported.id);
+
+                }
+
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "chat:import-error",
+
+            message=>{
+
+                if (this.ui && this.ui.showError) {
+
+                    this.ui.showError(message);
+
+                }
+
+            }
+
+        );
+
 
         /*
            Sidebar Toggle

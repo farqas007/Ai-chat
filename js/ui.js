@@ -154,6 +154,33 @@ input:
 
                     "#voiceSelect"
 
+                ),
+
+
+            exportChatBtn:
+
+                document.querySelector(
+
+                    "#exportChatBtn"
+
+                ),
+
+
+            importChatBtn:
+
+                document.querySelector(
+
+                    "#importChatBtn"
+
+                ),
+
+
+            chatImportFile:
+
+                document.querySelector(
+
+                    "#chatImportFile"
+
                 )
 
 
@@ -521,6 +548,111 @@ if(this.elements.imageButton){
                         event.target.value
 
                     );
+
+                }
+
+            );
+
+
+        }
+
+
+        /* =======================================================
+    CHAT EXPORT / IMPORT
+======================================================= */
+
+
+        if(this.elements.exportChatBtn){
+
+
+            this.elements.exportChatBtn.addEventListener(
+
+                "click",
+
+                ()=>{
+
+                    Events.emit("chat:export");
+
+                }
+
+            );
+
+
+        }
+
+
+        if(this.elements.importChatBtn){
+
+
+            this.elements.importChatBtn.addEventListener(
+
+                "click",
+
+                ()=>{
+
+                    if(this.elements.chatImportFile){
+
+                        this.elements.chatImportFile.click();
+
+                    }
+
+                }
+
+            );
+
+
+        }
+
+
+        if(this.elements.chatImportFile){
+
+
+            this.elements.chatImportFile.addEventListener(
+
+                "change",
+
+                async event=>{
+
+                    const file =
+
+                        event.target.files &&
+
+                        event.target.files[0];
+
+
+                    if(!file){
+
+                        return;
+
+                    }
+
+
+                    try{
+
+                        const text = await file.text();
+
+                        Events.emit("chat:import-file", text);
+
+                    }
+
+                    catch(error){
+
+                        Events.emit(
+
+                            "chat:import-error",
+
+                            "Could not read the selected file"
+
+                        );
+
+                    }
+
+                    finally{
+
+                        this.elements.chatImportFile.value = "";
+
+                    }
+
 
                 }
 

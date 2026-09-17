@@ -728,6 +728,29 @@ registerChatEvents() {
 
     Events.on(
 
+        "chat:imported",
+
+        chat => {
+
+
+            this.state.chats.push(
+
+                chat
+
+            );
+
+
+            this.render();
+
+
+        }
+
+    );
+
+
+
+    Events.on(
+
         "chat:deleted",
 
         chatId => {

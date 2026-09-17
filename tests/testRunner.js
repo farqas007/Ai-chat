@@ -42,6 +42,7 @@ const REAL_TESTS = [
     "tests/testChatSwitchRace.js",
 
     "tests/testChatSidebarFixes.js",
+    "tests/testChatImportExportUI.js",
     "tests/testCodeBlockEmpty.js",
     "tests/testCodeExtractor.js",
     "tests/testCodexHandler.js",
