@@ -78,6 +78,7 @@ const REAL_TESTS = [
     "tests/testThemeWiring.js",
     "tests/testToolManager.js",
     "tests/testVoiceComposer.js",
+    "tests/testVoiceCommandWiring.js",
     "tests/testVoiceFixes.js",
     "tests/testVoiceInput.js",
     "tests/testVoiceSettings.js",

@@ -530,6 +530,28 @@ Events.on(
         );
 
 
+        /*
+          Clear Chat
+        */
+
+
+        Events.on(
+
+            "chat:clear",
+
+            ()=>{
+
+                if (this.chat) {
+
+                    this.chat.clearChat();
+
+                }
+
+            }
+
+        );
+
+
 
 
 
@@ -1273,6 +1295,23 @@ Events.on(
                         this.voiceUI.show();
 
                     }
+
+                }
+
+            }
+
+        );
+
+
+        Events.on(
+
+            "voice:settings",
+
+            ()=>{
+
+                if (this.voiceUI) {
+
+                    this.voiceUI.show();
 
                 }
 
