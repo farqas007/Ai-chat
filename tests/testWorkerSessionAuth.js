@@ -29,6 +29,7 @@ import {
 import {
     createSessionToken,
     verifySessionToken,
+    revokeSessionToken,
     hasSessionSecret,
     SESSION_COOKIE_OPTIONS
 } from "../worker/session.js";
@@ -280,6 +281,53 @@ function run(auth, req) {
     });
 
     assert.strictEqual(res2.statusCode, 401);
+}
+
+
+/* 8.5 Logout revocation (best-effort live per-isolate revocation set). */
+
+{
+    const token = createSessionToken(SECRET, {
+        now: () => Date.now() + 10000
+    });
+
+    assert.strictEqual(
+        verifySessionToken(token, SECRET),
+        true,
+        "token valid before revocation"
+    );
+
+    revokeSessionToken(token);
+
+    assert.strictEqual(
+        verifySessionToken(token, SECRET),
+        false,
+        "revoked token rejected even with a valid signature and expiry"
+    );
+
+    assert.strictEqual(
+        afterLogoutVerifyAfterRevokeOnSameToken(token, SECRET),
+        false,
+        "revocation persists across verification calls"
+    );
+
+    const other = createSessionToken(SECRET);
+
+    assert.strictEqual(
+        verifySessionToken(other, SECRET),
+        true,
+        "unrelated token still verifies after another token was revoked"
+    );
+
+    /* Non-strings / empty revocations are safely ignored. */
+    revokeSessionToken(null);
+    revokeSessionToken("");
+    revokeSessionToken(undefined);
+}
+
+
+function afterLogoutVerifyAfterRevokeOnSameToken(token, secret) {
+    return verifySessionToken(token, secret);
 }
 
 

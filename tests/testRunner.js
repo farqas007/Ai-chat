@@ -68,6 +68,7 @@ const REAL_TESTS = [
     "tests/testRuntimePaths.js",
     "tests/testServerConfig.js",
     "tests/testServerRouteSecurity.js",
+    "tests/testSessionManager.js",
     "tests/testSettings.js",
     "tests/testSessionAuth.js",
     "tests/testStaticGuard.js",
@@ -80,6 +81,7 @@ const REAL_TESTS = [
     "tests/testVoiceFixes.js",
     "tests/testVoiceInput.js",
     "tests/testVoiceSettings.js",
+    "tests/testWorkerSecurity.js",
     "tests/testWorkerSessionAuth.js",
     "tests/testWorkerStreamChat.js"
 ];

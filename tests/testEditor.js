@@ -1,51 +1,96 @@
-import fs from "fs";
-import os from "os";
-import path from "path";
+import assert from "node:assert";
+
+import fs from "node:fs";
+
+import os from "node:os";
+
+import path from "node:path";
 
 import {
-readFile,
-writeFile,
-replaceCode
+    readFile,
+    writeFile,
+    replaceCode
+} from "../editor/codeEditor.js";
+
+
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "codeEditor-"));
+
+const testFile = path.join(root, "notes.txt");
+
+
+try {
+
+    /* BUG-16: readFile returns null (never a literal) for a missing file. */
+
+    assert.strictEqual(
+        readFile(path.join(root, "missing.txt"), root),
+        null,
+        "readFile returns null for a missing file"
+    );
+
+
+    /* Round-trip inside the root. */
+
+    writeFile(testFile, "Hello<br>World<br>", root);
+
+    assert.strictEqual(
+        readFile(testFile, root),
+        "Hello<br>World<br>",
+        "writeFile + readFile round-trip"
+    );
+
+
+    /* replaceCode replaces in place. */
+
+    assert.strictEqual(
+        replaceCode(testFile, "World", "AI Chat", root),
+        "Code replaced",
+        "replaceCode reports a successful replacement"
+    );
+
+    const updated = readFile(testFile, root);
+
+    assert.ok(
+        updated.includes("AI Chat"),
+        "replaceCode updated the file"
+    );
+
+
+    /* replaceCode on a missing file is reported, not leaked (BUG-16). */
+
+    assert.strictEqual(
+        replaceCode(path.join(root, "nope.txt"), "a", "b", root),
+        "File not found",
+        "replaceCode reports a missing file without exposing contents"
+    );
+
+
+    /* SEC-03: writes and reads outside the root are refused. */
+
+    assert.throws(
+        () => writeFile("../escape.txt", "x", root),
+        /Invalid file path/,
+        "writeFile rejects traversal outside the root"
+    );
+
+    assert.throws(
+        () => writeFile("/etc/code-editor-test.txt", "x", root),
+        /Invalid file path/,
+        "writeFile rejects an absolute path outside the root"
+    );
+
+    assert.strictEqual(
+        readFile("../escape.txt", root),
+        null,
+        "readFile returns null for traversal outside the root"
+    );
+
+
+    console.log("PASS: codeEditor containment + missing-file semantics");
+
 }
-from "../editor/codeEditor.js";
+finally {
 
-
-const testFile =
-path.join(os.tmpdir(), "ai-chat-editor-test.txt");
-
-writeFile(
-testFile,
-"Hello<br>World<br>"
-);
-
-
-console.log(
-readFile(testFile)
-);
-
-
-console.log(
-replaceCode(
-testFile,
-"World",
-"AI Chat"
-)
-);
-
-
-const updated = readFile(testFile);
-
-
-if(!updated.includes("AI Chat")){
-
-    console.error("FAIL: replaceCode did not update file");
-
-    process.exit(1);
+    fs.rmSync(root, { recursive: true, force: true });
 
 }
-
-
-console.log("replaceCode verification passed");
-
-
-fs.unlinkSync(testFile);

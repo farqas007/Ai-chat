@@ -9,7 +9,7 @@ export class FileAgent {
 
         this.root = root;
 
-        this.patch = new PatchEngine();
+        this.patch = new PatchEngine(root);
 
         if (!fs.existsSync(this.root)) {
 

@@ -6,6 +6,18 @@
 
 import path from "path";
 
+// Secret/config file extensions that must never be read, edited or served.
+// `.env` is matched by prefix rule below (segment name), these cover
+// private keys, credential stores and Cloudflare secrets.
+const SENSITIVE_EXTENSIONS = [
+    ".pem",
+    ".key",
+    ".crt",
+    ".p12",
+    ".pfx",
+    ".jks"
+];
+
 // Block sensitive/private runtime files from being read, edited or served.
 export function isSensitivePath(filePath) {
     const normalized = path.normalize(filePath)
@@ -33,8 +45,65 @@ export function isSensitivePath(filePath) {
     if (normalized === "bugs.json" || normalized === "memory.json") {
         return true;
     }
+    // Cloudflare secrets file (secret store for worker bindings).
+    if (
+        normalized === ".dev.vars" ||
+        normalized.startsWith(".dev.vars/") ||
+        normalized.endsWith("/.dev.vars")
+    ) {
+        return true;
+    }
+    // Git credential/config metadata.
+    if (
+        normalized.endsWith(".git/config") ||
+        normalized.endsWith(".git/credentials")
+    ) {
+        return true;
+    }
+    // Private key / certificate material, anywhere in the path.
+    for (const ext of SENSITIVE_EXTENSIONS) {
+        if (normalized.endsWith(ext)) {
+            return true;
+        }
+    }
 
     return false;
+}
+
+// Resolves `file` against `root` and returns the canonical absolute path
+// only when it stays inside `root`. Returns null for escapes, absolute
+// paths outside the root, NUL bytes and empty input. Shared by every
+// write primitive so a single containment gate protects all callers.
+export function resolveInside(root, file) {
+    if (
+        typeof root !== "string" ||
+        root.length === 0 ||
+        typeof file !== "string" ||
+        file.length === 0
+    ) {
+        return null;
+    }
+
+    try {
+        const base = path.resolve(root);
+
+        const fullPath = path.resolve(base, file);
+
+        const relative = path.relative(base, fullPath);
+
+        if (
+            relative === "" ||
+            relative.startsWith("..") ||
+            path.isAbsolute(relative)
+        ) {
+            return null;
+        }
+
+        return fullPath;
+    }
+    catch {
+        return null;
+    }
 }
 
 // Validates a client-supplied relative path before any file write.

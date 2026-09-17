@@ -1,6 +1,24 @@
 import assert from "node:assert";
 
 
+/* Plain-node harness: provide a default browser `navigator` global the
+   way Node's test setup does not (only a real browser defines it). */
+
+if (typeof globalThis.navigator === "undefined") {
+
+    Object.defineProperty(globalThis, "navigator", {
+
+        value: { language: "en-US" },
+
+        configurable: true,
+
+        writable: true
+
+    });
+
+}
+
+
 import Events from "../js/events.js";
 
 import {

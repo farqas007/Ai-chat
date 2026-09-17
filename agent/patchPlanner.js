@@ -24,26 +24,15 @@ export class PatchPlanner {
 
         }
 
-        if (operations.length === 0) {
-
-            operations.push({
-
-                action: "create",
-
-                file: "index.html",
-
-                reason: task,
-
-                backup: false,
-
-                priority: 1
-
-            });
-
-        }
+        // No phantom "create index.html" fallback: with no relevant files
+        // nothing can be safely patched, so an empty plan is returned.
+        // A generated create that could overwrite an existing file is
+        // never invented here.
 
         return operations.sort(
+
             (a, b) => a.priority - b.priority
+
         );
 
     }

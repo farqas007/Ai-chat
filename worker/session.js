@@ -28,6 +28,25 @@ import {
 /* Token format: <base64url("v1.<expiresAtMs>")>.<base64url(hmac)>. */
 const TOKEN_VERSION = "v1";
 
+/* Best-effort live revocation. Worker isolates are ephemeral so this
+   set is per-isolate: a logged-out cookie stops working on the isolate
+   that saw the logout, and on every isolate that loads after it.
+   Widespread revocation still requires shared storage (out of scope);
+   the signed expiry remains the hard guarantee. */
+const MAX_REVOKED = 10000;
+
+const revokedTokens = new Set();
+
+export function revokeSessionToken(token) {
+    if (typeof token === "string" && token.length > 0) {
+        if (revokedTokens.size >= MAX_REVOKED) {
+            const oldest = revokedTokens.values().next().value;
+            revokedTokens.delete(oldest);
+        }
+        revokedTokens.add(token);
+    }
+}
+
 /* Cookie attributes: identical security posture to the Node server
    (server/server.js SESSION_COOKIE_OPTIONS). */
 export const SESSION_COOKIE_OPTIONS = {
@@ -87,6 +106,11 @@ export function verifySessionToken(token, secret, options = {}) {
     }
 
     if (typeof token !== "string" || token.length === 0) {
+        return false;
+    }
+
+    // Logged-out sessions are rejected before the HMAC comparison.
+    if (revokedTokens.has(token)) {
         return false;
     }
 

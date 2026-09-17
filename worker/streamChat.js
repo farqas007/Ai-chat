@@ -57,6 +57,13 @@ const DEFAULT_TEMPERATURE = 0.7;
 
 const DEFAULT_MAX_TOKENS = 2048;
 
+/* Max accepted JSON body on the native stream path. Mirrors the Express
+   `express.json({ limit: "1mb" })` used on both servers so an oversized
+   body gets a 413 instead of unbounded memory use. */
+export const MAX_BODY_BYTES = 1024 * 1024;
+
+const RETRY_AFTER_SECONDS = 60;
+
 
 /* Security/CSP posture mirrored from the Express middleware in
    worker/index.js, applied to every native-path response. */
@@ -70,6 +77,77 @@ export const API_SECURITY_HEADERS = {
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 };
+
+
+/* ===========================================================
+   BODY READING (size-capped)
+   Parses a Request body as JSON, rejecting anything bigger than
+   maxBytes (byte-counted) with a 413-visible signal instead of
+   buffering unbounded input.
+   =========================================================== */
+
+export async function readJsonBody(request, maxBytes = MAX_BODY_BYTES) {
+
+    const rawLength = request.headers && request.headers.get
+        ? request.headers.get("content-length")
+        : null;
+
+    if (rawLength !== null) {
+        const length = Number(rawLength);
+        if (Number.isFinite(length) && length > maxBytes) {
+            return { ok: false, tooLarge: true, body: null };
+        }
+    }
+
+    let chunks = [];
+
+    let totalBytes = 0;
+
+    try {
+        const reader = request.body && request.body.getReader();
+
+        if (!reader) {
+            return { ok: false, tooLarge: false, body: null };
+        }
+
+        for (;;) {
+            const { value, done } = await reader.read();
+            if (done) {
+                break;
+            }
+            totalBytes += value.byteLength;
+            if (totalBytes > maxBytes) {
+                return { ok: false, tooLarge: true, body: null };
+            }
+            chunks.push(value);
+        }
+    } catch {
+        return { ok: false, tooLarge: false, body: null };
+    }
+
+    if (totalBytes > maxBytes) {
+        return { ok: false, tooLarge: true, body: null };
+    }
+
+    let text = "";
+
+    try {
+        const decoder = new TextDecoder();
+        for (const chunk of chunks) {
+            text += decoder.decode(chunk, { stream: true });
+        }
+        text += decoder.decode();
+    } catch {
+        return { ok: false, tooLarge: false, body: null };
+    }
+
+    try {
+        return { ok: true, tooLarge: false, body: JSON.parse(text) };
+    } catch {
+        return { ok: false, tooLarge: false, body: null };
+    }
+
+}
 
 
 /* ===========================================================
@@ -402,6 +480,7 @@ export async function createStreamChatResponse(request, config = {}) {
         openrouterKey = "",
         systemPrompt = "",
         allowedOrigins = [],
+        rateLimiter = null,
         upstreamUrl = DEFAULT_UPSTREAM_URL,
         timeoutMs = DEFAULT_TIMEOUT_MS,
         model = DEFAULT_MODEL,
@@ -421,6 +500,16 @@ export async function createStreamChatResponse(request, config = {}) {
         }
     );
 
+    /* Body-size gate first (matches Express: express.json parses before
+       auth, so oversized payloads are rejected up front with a 413). */
+    const declaredLength = request.headers.get
+        ? Number(request.headers.get("content-length") || 0)
+        : 0;
+
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+        return jsonError(413, "Payload too large.");
+    }
+
     const auth = await authenticateStreamRequest(request, {
         authDisabled,
         apiToken,
@@ -429,6 +518,26 @@ export async function createStreamChatResponse(request, config = {}) {
 
     if (!auth.ok) {
         return jsonError(auth.status, auth.error);
+    }
+
+    /* In-memory per-isolate rate limit, applied after auth to mirror the
+       Express route ordering (requireAuth -> rate limit -> handler). */
+    if (
+        rateLimiter &&
+        typeof rateLimiter.allowRequest === "function" &&
+        !rateLimiter.allowRequest(request, "/api/chat")
+    ) {
+        const headers = Object.assign({}, API_SECURITY_HEADERS, {
+            "Content-Type": "application/json",
+            "Retry-After": String(RETRY_AFTER_SECONDS)
+        });
+        return new Response(
+            JSON.stringify({
+                success: false,
+                error: "Too many requests. Please try again shortly."
+            }),
+            { status: 429, headers }
+        );
     }
 
     if (!openrouterKey) {
@@ -440,11 +549,13 @@ export async function createStreamChatResponse(request, config = {}) {
 
     let body;
 
-    try {
-        body = await request.json();
-    } catch {
-        body = null;
+    const parsed = await readJsonBody(request);
+
+    if (parsed.tooLarge) {
+        return jsonError(413, "Payload too large.");
     }
+
+    body = parsed.ok ? parsed.body : null;
 
     const message = body && typeof body.message === "string"
         ? body.message

@@ -11,9 +11,60 @@ export class SessionManager {
 
         if (!fs.existsSync(directory)) {
 
-            fs.mkdirSync(directory);
+            fs.mkdirSync(directory, { recursive: true });
 
         }
+
+    }
+
+    // Resolves a client-supplied session id to a file inside this.directory,
+    // or returns null when the id could escape the directory (traversal,
+    // backslashes, separators, NUL bytes, leading dots, oversized names).
+    _fileFor(id) {
+
+        if (
+            typeof id !== "string" ||
+            id.length === 0 ||
+            id.length > 100 ||
+            id.includes("/") ||
+            id.includes("\\") ||
+            id.includes("\0") ||
+            id.includes("..") ||
+            id.startsWith(".")
+        ) {
+            return null;
+        }
+
+        const base = path.resolve(this.directory);
+
+        let full;
+
+        try {
+            full = path.resolve(base, `${id}.json`);
+        } catch {
+            return null;
+        }
+
+        const relative = path.relative(base, full);
+
+        if (
+            relative === "" ||
+            relative.startsWith("..") ||
+            path.isAbsolute(relative)
+        ) {
+            return null;
+        }
+
+        return full;
+    }
+
+    _atomicWrite(file, data) {
+
+        const temp = `${file}.tmp`;
+
+        fs.writeFileSync(temp, JSON.stringify(data, null, 2), "utf8");
+
+        fs.renameSync(temp, file);
 
     }
 
@@ -35,13 +86,9 @@ export class SessionManager {
 
         };
 
-        fs.writeFileSync(
+        const file = this._fileFor(id);
 
-            `${this.directory}/${id}.json`,
-
-            JSON.stringify(session, null, 2)
-
-        );
+        this._atomicWrite(file, session);
 
         return session;
 
@@ -49,31 +96,63 @@ export class SessionManager {
 
     load(id) {
 
-        return JSON.parse(
+        const file = this._fileFor(id);
 
-            fs.readFileSync(
+        if (!file || !fs.existsSync(file)) {
 
-                `${this.directory}/${id}.json`,
+            return null;
 
-                "utf8"
+        }
 
-            )
+        try {
 
-        );
+            const session = JSON.parse(fs.readFileSync(file, "utf8"));
+
+            if (
+                !session ||
+                typeof session !== "object" ||
+                typeof session.id !== "string"
+            ) {
+                return null;
+            }
+
+            if (!Array.isArray(session.messages)) {
+                session.messages = [];
+            }
+
+            if (typeof session.title !== "string") {
+                session.title = "New Chat";
+            }
+
+            return session;
+
+        } catch {
+            return null;
+        }
 
     }
 
     save(session) {
 
+        if (
+            !session ||
+            typeof session !== "object" ||
+            typeof session.id !== "string"
+        ) {
+            throw new Error("Invalid session");
+        }
+
+        const file = this._fileFor(session.id);
+
+        if (!file) {
+
+            throw new Error("Invalid session id");
+
+        }
+
         session.updated = Date.now();
 
-        fs.writeFileSync(
-
-            `${this.directory}/${session.id}.json`,
-
-            JSON.stringify(session, null, 2)
-
-        );
+        this._atomicWrite(file, session);
 
     }
 
@@ -85,39 +164,58 @@ export class SessionManager {
 
             .map(file => {
 
-                const session = JSON.parse(
+                try {
 
-                    fs.readFileSync(
+                    const session = JSON.parse(
 
-                        `${this.directory}/${file}`,
+                        fs.readFileSync(path.join(this.directory, file), "utf8")
 
-                        "utf8"
+                    );
 
-                    )
+                    if (
+                        session &&
+                        typeof session === "object" &&
+                        typeof session.id === "string"
+                    ) {
+                        return {
 
-                );
+                            id: session.id,
 
-                return {
+                            title: typeof session.title === "string"
+                                ? session.title
+                                : "New Chat",
 
-                    id: session.id,
+                            updated: Number.isFinite(session.updated)
+                                ? session.updated
+                                : 0
 
-                    title: session.title,
+                        };
+                    }
 
-                    updated: session.updated
+                } catch {
+                    // Skip corrupt/unreadable session files instead of
+                    // letting one bad file destroy the entire listing.
+                }
 
-                };
+                return null;
 
-            });
+            })
+
+            .filter(session => session !== null);
 
     }
 
     delete(id) {
 
-        fs.unlinkSync(
+        const file = this._fileFor(id);
 
-            `${this.directory}/${id}.json`
+        if (!file || !fs.existsSync(file)) {
 
-        );
+            throw new Error("Invalid session id");
+
+        }
+
+        fs.unlinkSync(file);
 
     }
 

@@ -24,7 +24,9 @@ fs.writeFileSync(file, original, "utf8");
 
 try {
 
-    const manager = new BackupManager(backupDir);
+    const manager = new BackupManager(backupDir, {
+    workspaceRoot: workDir
+});
 
     const backupPath = manager.backup(file);
 
@@ -66,6 +68,27 @@ try {
     assert.ok(
         backupPath.startsWith(backupDir),
         "backup must live inside the configured backup directory"
+    );
+
+
+    /* SEC-03: containment. */
+
+    assert.strictEqual(
+        manager.backup(path.join(tmpBase, "outside.txt")),
+        null,
+        "files outside the workspace root are not backed up"
+    );
+
+    assert.throws(
+        () => manager.restore(backupPath, path.join(tmpBase, "victim.txt")),
+        /Invalid target file/,
+        "restore refuses targets outside the workspace root"
+    );
+
+    assert.throws(
+        () => manager.restore(path.join(workDir, "not-a-backup.txt"), file),
+        /Invalid backup file/,
+        "restore refuses backup files outside the backup directory"
     );
 
 

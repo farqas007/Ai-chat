@@ -30,7 +30,13 @@ export class ProjectIndexer {
 
     scan(dir, result) {
 
-        const items = fs.readdirSync(dir);
+        let items;
+
+        try {
+            items = fs.readdirSync(dir);
+        } catch {
+            return;
+        }
 
         for (const item of items) {
 
@@ -44,7 +50,19 @@ export class ProjectIndexer {
 
             const fullPath = path.join(dir, item);
 
-            const stat = fs.statSync(fullPath);
+            let stat;
+
+            try {
+                stat = fs.lstatSync(fullPath);
+            } catch {
+                continue;
+            }
+
+            // Skip symlinks so a link can never cause infinite recursion,
+            // escape the project root, or surface an unreadable target.
+            if (stat.isSymbolicLink()) {
+                continue;
+            }
 
             if (stat.isDirectory()) {
 

@@ -1320,7 +1320,6 @@ exportChat(chatId = null) {
 /* =======================================================
    IMPORT CHAT
 ======================================================= */
-
 importChat(data) {
 
 
@@ -1336,14 +1335,73 @@ importChat(data) {
                 : data;
 
 
+        if (
 
-        if (!chat.id) {
+            !chat ||
+            typeof chat !== "object" ||
+            Array.isArray(chat)
+
+        ) {
 
             throw new Error(
 
                 "Invalid chat data"
 
             );
+
+        }
+
+
+        if (
+            typeof chat.id !== "string" ||
+            chat.id.trim() === ""
+        ) {
+
+            throw new Error(
+
+                "Invalid chat data"
+
+            );
+
+        }
+
+
+        // Normalize shape so sidebar/search/storage never crash on an
+        // imported chat that is missing expected fields.
+        if (typeof chat.title !== "string") {
+
+            chat.title = "";
+
+        }
+
+
+        if (!Array.isArray(chat.messages)) {
+
+            chat.messages = [];
+
+        } else {
+
+            chat.messages = chat.messages
+
+                .filter(message => message && typeof message === "object");
+
+
+            chat.messages.forEach(message => {
+
+                if (typeof message.content !== "string") {
+
+                    message.content = "";
+
+                }
+
+            });
+
+        }
+
+
+        if (typeof chat.updatedAt !== "string") {
+
+            chat.updatedAt = new Date().toISOString();
 
         }
 

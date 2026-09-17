@@ -35,17 +35,23 @@ for (let i = 0; i < files.length; i++) {
 }
 
 
-/* Without relevant files, a single create for index.html is planned. */
+/* Without relevant files nothing can be safely patched, so an empty
+   plan is returned: the planner must never invent a phantom `create
+   index.html` (BUG-18) that could overwrite an existing file. */
 
 const empty = planner.plan(task, {});
 
-assert.strictEqual(empty.length, 1, "empty context must plan exactly one op");
+assert.strictEqual(
+    Array.isArray(empty),
+    true,
+    "empty context yields an array"
+);
 
-assert.strictEqual(empty[0].action, "create", "fallback op must be a create");
-
-assert.strictEqual(empty[0].file, "index.html", "fallback op must target index.html");
-
-assert.strictEqual(empty[0].backup, false, "create ops must not require a backup");
+assert.strictEqual(
+    empty.length,
+    0,
+    "empty context must plan zero operations (no phantom create)"
+);
 
 
 console.log("PASS: patch planner produces the expected operation structure");

@@ -26,49 +26,61 @@ export class ProjectScanner {
 
         let files = [];
 
+        const walked = new Set();
 
-        const walk = (current)=>{
+        const walk = (current) => {
 
-            const items = fs.readdirSync(current);
+            // Guard against symlink cycles and permission errors. Symlinks
+            // are skipped entirely so a link cannot cause infinite
+            // recursion or escape the project root.
+            let items;
 
+            try {
+                items = fs.readdirSync(current);
+            } catch {
+                return;
+            }
 
-            for(const item of items){
+            for (const item of items) {
 
-
-                if(ignore.includes(item)){
+                if (ignore.includes(item)) {
                     continue;
                 }
 
-
                 const fullPath =
-                    path.join(current,item);
+                    path.join(current, item);
 
-
-                const stat =
-                    fs.statSync(fullPath);
-
-
-
-                if(stat.isDirectory()){
-
-                    walk(fullPath);
-
+                if (walked.has(fullPath)) {
+                    continue;
                 }
-                else{
 
+                walked.add(fullPath);
+
+                let stat;
+
+                try {
+                    stat = fs.lstatSync(fullPath);
+                } catch {
+                    continue;
+                }
+
+                if (stat.isSymbolicLink()) {
+                    continue;
+                }
+
+                if (stat.isDirectory()) {
+                    walk(fullPath);
+                } else {
                     files.push(
-                        path.relative(folder,fullPath)
+                        path.relative(folder, fullPath)
                     );
-
                 }
 
             }
 
         };
 
-
         walk(folder);
-
 
         return files;
 

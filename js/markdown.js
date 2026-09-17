@@ -235,7 +235,8 @@ export class Markdown {
 
 
     // Allows http(s), mailto and relative URLs only.
-    // Blocks javascript:, data:, vbscript: and protocol-relative hosts.
+    // Blocks javascript:, data:, vbscript:, blob:, file:,
+    // protocol-relative hosts and any scheme obfuscation / control chars.
     safeUrl(value) {
 
         const trimmed = String(value || "").trim();
@@ -244,7 +245,27 @@ export class Markdown {
             return null;
         }
 
+        // Control characters (incl. newlines/tabs) can smuggle a
+        // secondary URL past the scheme check.
+        if (/[\u0001-\u0020\u007F]/.test(trimmed)) {
+            return null;
+        }
+
         const lower = trimmed.toLowerCase();
+
+        const FORBIDDEN_SCHEMES = [
+            "javascript:",
+            "vbscript:",
+            "data:",
+            "blob:",
+            "file:"
+        ];
+
+        for (const scheme of FORBIDDEN_SCHEMES) {
+            if (lower.startsWith(scheme)) {
+                return null;
+            }
+        }
 
         if (
             lower.startsWith("http://") ||

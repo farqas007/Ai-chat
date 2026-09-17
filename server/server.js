@@ -623,7 +623,7 @@ app.get("/generate-image/:id",
 
     try {
         const response = await fetch(
-            `${REPLICATE_API}/predictions/${req.params.id}`,
+            `${REPLICATE_API}/predictions/${encodeURIComponent(req.params.id)}`,
             {
                 headers: { "Authorization": `Token ${REPLICATE_KEY}` },
                 signal: AbortSignal.timeout(30000)
@@ -669,7 +669,8 @@ app.use((req, res, next) => {
 
 app.use(express.static(path.join(__dirname, ".."), {
     dotfiles: "deny",
-    index: "index.html"
+    index: "index.html",
+    followSymlinks: false
 }));
 
 /* ===========================================================

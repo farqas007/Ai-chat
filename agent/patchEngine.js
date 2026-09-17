@@ -1,81 +1,64 @@
 import fs from "fs";
-
+import path from "path";
+import { fileURLToPath } from "url";
+import { resolveInside } from "../server/pathGuard.js";
 
 export class PatchEngine {
 
+    constructor(root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")) {
+        this.root = root;
+    }
 
-    replace(
-        filePath,
-        oldCode,
-        newCode
-    ){
+    // Only replaces inside the configured root. Rejects paths that would
+    // escape the sandbox before any read or write happens.
+    replace(filePath, oldCode, newCode) {
+        const fullPath = resolveInside(
+            this.root,
+            filePath
+        );
+
+        if (!fullPath) {
+            return {
+                success: false,
+                error: "Invalid file path"
+            };
+        }
 
         try {
+            const content = fs.readFileSync(
+                fullPath,
+                "utf8"
+            );
 
-            const content =
-                fs.readFileSync(
-                    filePath,
-                    "utf8"
-                );
-
-
-            if(
-                !content.includes(oldCode)
-            ){
-
+            if (!content.includes(oldCode)) {
                 return {
-
-                    success:false,
-
-                    message:
-                    "Old code not found"
-
+                    success: false,
+                    message: "Old code not found"
                 };
-
             }
 
-
-            const updated =
-                content.replace(
-                    oldCode,
-                    newCode
-                );
-
+            const updated = content.replace(
+                oldCode,
+                newCode
+            );
 
             fs.writeFileSync(
-                filePath,
+                fullPath,
                 updated,
                 "utf8"
             );
 
-
             return {
-
-                success:true,
-
-                file:filePath,
-
-                message:
-                "Code replaced successfully"
-
+                success: true,
+                file: fullPath,
+                message: "Code replaced successfully"
             };
-
-
-        } catch(error){
-
-
-            return {
-
-                success:false,
-
-                error:error.message
-
-            };
-
-
         }
-
+        catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
-
-
 }

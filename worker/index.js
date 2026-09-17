@@ -43,11 +43,13 @@ import {
 import {
     createSessionToken,
     verifySessionToken,
+    revokeSessionToken,
     SESSION_COOKIE_OPTIONS
 } from "./session.js";
 import { createWorkerRequireAuth } from "./auth.js";
 
-import { createStreamChatResponse } from "./streamChat.js";
+import { createStreamChatResponse, readJsonBody } from "./streamChat.js";
+import { createRateLimiter } from "./rateLimit.js";
 
 /* The Express app is bound to this virtual port, which the official
    adapter (httpServerHandler) uses to route Worker requests into it.
@@ -194,6 +196,21 @@ const requireAuth = createWorkerRequireAuth({
 });
 
 /* ===========================================================
+   RATE LIMITING (best-effort, per-isolate, in-memory)
+   Same limits as server/server.js for the routes that exist here.
+   =========================================================== */
+
+const sessionLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
+
+const loginLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
+
+const chatLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20 });
+
+const imageCreateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
+
+const imageStatusLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
+
+/* ===========================================================
    HEALTH CHECK
    =========================================================== */
 
@@ -212,7 +229,7 @@ app.get("/api/health", (req, res) => {
    is not configured, login and cookie verification fail closed.
    =========================================================== */
 
-app.get("/api/session", (req, res) => {
+app.get("/api/session", sessionLimiter.middleware, (req, res) => {
 
     if (DEV_NO_AUTH) {
         return res.json({ authenticated: true });
@@ -231,7 +248,7 @@ app.get("/api/session", (req, res) => {
 
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", loginLimiter.middleware, (req, res) => {
 
     if (DEV_NO_AUTH) {
         return res.json({ success: true });
@@ -273,6 +290,16 @@ app.post("/api/login", (req, res) => {
 
 app.post("/api/logout", (req, res) => {
 
+    const sessionId = getCookieValue(
+        req.headers.cookie,
+        SESSION_COOKIE
+    );
+
+    // Best-effort live revocation of the stateless cookie on this isolate.
+    if (sessionId) {
+        revokeSessionToken(sessionId);
+    }
+
     res.clearCookie(
         SESSION_COOKIE,
         { httpOnly: true, secure: true, sameSite: "strict", path: "/" }
@@ -286,7 +313,7 @@ app.post("/api/logout", (req, res) => {
    AI CHAT PROXY (OpenRouter)
    =========================================================== */
 
-app.post("/api/chat", requireAuth, async (req, res) => {
+app.post("/api/chat", requireAuth, chatLimiter.middleware, async (req, res) => {
 
     if (!OPENROUTER_KEY) {
         return res.status(503).json({
@@ -363,7 +390,7 @@ app.post("/api/chat", requireAuth, async (req, res) => {
    GENERATE IMAGE (Replicate)
    =========================================================== */
 
-app.post("/generate-image", requireAuth, async (req, res) => {
+app.post("/generate-image", requireAuth, imageCreateLimiter.middleware, async (req, res) => {
 
     if (!REPLICATE_KEY) {
         return res.status(503).json({
@@ -414,7 +441,7 @@ app.post("/generate-image", requireAuth, async (req, res) => {
 
 });
 
-app.get("/generate-image/:id", requireAuth, async (req, res) => {
+app.get("/generate-image/:id", requireAuth, imageStatusLimiter.middleware, async (req, res) => {
 
     if (!REPLICATE_KEY) {
         return res.status(503).json({
@@ -492,14 +519,16 @@ export default {
             url.pathname === "/api/chat"
         ) {
 
-            let streamRequested = false;
+            /* Body is probed on a CLONE so the original stays intact for
+               the native path below. Oversized bodies are rejected here
+               with a 413; malformed JSON falls through to Express, where
+               the express.json limit/parser returns 400. */
+            const parsed = await readJsonBody(request.clone());
 
-            try {
-                const body = await request.clone().json();
-                streamRequested = body && body.stream === true;
-            } catch {
-                streamRequested = false;
-            }
+            const streamRequested =
+                parsed.ok &&
+                parsed.body &&
+                parsed.body.stream === true;
 
             if (streamRequested) {
                 return createStreamChatResponse(request, {
@@ -508,8 +537,24 @@ export default {
                     sessionSecret: SESSION_SECRET,
                     openrouterKey: OPENROUTER_KEY,
                     systemPrompt: SYSTEM_PROMPT,
-                    allowedOrigins: ALLOWED_ORIGINS
+                    allowedOrigins: ALLOWED_ORIGINS,
+                    rateLimiter: chatLimiter
                 });
+            }
+
+            if (parsed.tooLarge) {
+                return new Response(
+                    JSON.stringify({
+                        success: false,
+                        error: "Payload too large."
+                    }),
+                    {
+                        status: 413,
+                        headers: {
+                            "Content-Type": "application/json"
+                        }
+                    }
+                );
             }
 
         }

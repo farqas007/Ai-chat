@@ -71,7 +71,19 @@ const sensitiveBlocked = [
     "bugs.json",
     "memory.json",
     "SERVER/SERVER.JS",
-    "SERVER\\SERVER.JS"
+    "SERVER\\SERVER.JS",
+    ".dev.vars",
+    "config/.dev.vars",
+    "worker/.dev.vars",
+    ".git/config",
+    ".git/credentials",
+    "repo/.git/config",
+    "private.pem",
+    "keys/ssh.key",
+    "certs/server.crt",
+    "keystore.p12",
+    "mobile.pfx",
+    "truststore.jks"
 ];
 
 for (const p of sensitiveBlocked) {
@@ -99,7 +111,13 @@ const sensitiveAllowed = [
     "data/memory.json",
     "server-notes.md",
     "aserver/thing.txt",
-    "vendor/package.json"
+    "vendor/package.json",
+    "config/notes.txt",
+    "keys/readme.txt",
+    "certs/log.txt",
+    ".gitignore",
+    "my.keynote",
+    "keystore.inventory"
 ];
 
 for (const p of sensitiveAllowed) {
