@@ -23,6 +23,10 @@
    - importChat validates a chat payload (object or JSON string),
      requires an id, pushes + persists + emits, and reports errors
      through handleError without mutating state
+   - on import, an id that collides with an existing chat is
+     regenerated (unique ids round-trip unchanged) and missing /
+     non-string / malformed updatedAt + createdAt timestamps are
+     normalized to the current ISO time
    - exportChat returns pretty JSON (or null)
    - deleteMessage removes one message, persists, updates UI and
      emits the message id
@@ -108,6 +112,7 @@ function makeChat() {
     const ui = {
         clearMessages: () => { calls.uiCleared += 1; },
         removeMessage: id => calls.uiMessageRemoved.push(id),
+        renderChat: () => {},
         showError: () => {}
     };
 
@@ -372,10 +377,186 @@ function testDeleteMessage() {
 }
 
 
+/* -----------------------------------------------------------
+   importChat collision — a colliding id is regenerated.
+----------------------------------------------------------- */
+
+function testImportChatCollision() {
+    const { chat } = makeChat();
+
+    const imported = chat.importChat({
+        id: "chat_1",
+        title: "Imported Duplicate",
+        messages: [{ id: "im_dup", role: "user", content: "dup" }]
+    });
+
+    assert.notStrictEqual(imported.id, "chat_1", "colliding import receives a different id");
+
+    const original = chat.state.chats.find(c => c.id === "chat_1");
+
+    assert.ok(
+        original && original.title === "New Chat",
+        "existing chat keeps its id and data"
+    );
+
+    assert.strictEqual(
+        chat.state.chats.filter(c => c.id === imported.id).length,
+        1,
+        "imported chat is appended under its new id"
+    );
+
+    chat.state.currentChatId = null;
+
+    chat.openChat(imported.id);
+
+    assert.strictEqual(
+        chat.state.currentChatId,
+        imported.id,
+        "imported chat opens independently"
+    );
+    assert.strictEqual(
+        chat.state.messages[0].content,
+        "dup",
+        "imported chat renders its own messages"
+    );
+
+    check("C importChat regenerates colliding ids and keeps both chats usable", true);
+}
+
+
+/* -----------------------------------------------------------
+   importChat unique id — preserved unchanged.
+----------------------------------------------------------- */
+
+function testImportChatUniqueIdPreserved() {
+    const { chat } = makeChat();
+
+    const result = chat.importChat({
+        id: "chat_fresh",
+        title: "Fresh",
+        messages: []
+    });
+
+    assert.strictEqual(result.id, "chat_fresh", "unique imported id is preserved");
+
+    check("C importChat preserves unique imported ids", true);
+}
+
+
+/* -----------------------------------------------------------
+   Re-importing the same export leaves no duplicate ids.
+----------------------------------------------------------- */
+
+function testReimportSameExport() {
+    const { chat } = makeChat();
+
+    const exported = {
+        id: "chat_exp",
+        title: "Export",
+        messages: [{ id: "em1", role: "user", content: "hello" }],
+        updatedAt: "2025-01-01T00:00:00.000Z",
+        createdAt: "2025-01-01T00:00:00.000Z"
+    };
+
+    const first = chat.importChat({ ...exported });
+
+    const second = chat.importChat({ ...exported });
+
+    assert.strictEqual(first.id, "chat_exp", "first import keeps the exported id");
+
+    assert.notStrictEqual(second.id, first.id, "re-import avoids the duplicate id");
+
+    const ids = chat.state.chats.map(c => c.id);
+
+    assert.strictEqual(
+        new Set(ids).size,
+        ids.length,
+        "no duplicate chat ids remain after re-import"
+    );
+
+    chat.state.currentChatId = null;
+
+    chat.openChat(second.id);
+
+    assert.strictEqual(
+        chat.state.currentChatId,
+        second.id,
+        "second import opens independently"
+    );
+    assert.strictEqual(
+        chat.state.messages[0].content,
+        "hello",
+        "second import carries its messages"
+    );
+
+    chat.deleteChat(first.id);
+
+    assert.ok(
+        !chat.state.chats.some(c => c.id === first.id),
+        "deleting the first import removes only it"
+    );
+    assert.ok(
+        chat.state.chats.some(c => c.id === second.id),
+        "second import survives deleting the first"
+    );
+
+    check("C re-importing the same export leaves no duplicate ids", true);
+}
+
+
+/* -----------------------------------------------------------
+   importChat timestamp normalization (updatedAt / createdAt).
+----------------------------------------------------------- */
+
+function testImportTimestampNormalization() {
+    const { chat } = makeChat();
+
+    const valid = chat.importChat({
+        id: "ts_valid",
+        title: "V",
+        messages: [],
+        updatedAt: "2024-05-01T10:00:00.000Z",
+        createdAt: "2023-05-01T10:00:00.000Z"
+    });
+
+    assert.strictEqual(valid.updatedAt, "2024-05-01T10:00:00.000Z", "valid updatedAt is preserved");
+    assert.strictEqual(valid.createdAt, "2023-05-01T10:00:00.000Z", "valid createdAt is preserved");
+
+    const cases = [
+        ["missing", { id: "ts_missing", title: "M", messages: [] }],
+        ["numeric", { id: "ts_num", title: "N", messages: [], updatedAt: 1234567890, createdAt: 987654321 }],
+        ["malformed", { id: "ts_bad", title: "B", messages: [], updatedAt: "not-a-date", createdAt: "garbage" }]
+    ];
+
+    cases.forEach(([name, payload]) => {
+
+        const imported = chat.importChat(payload);
+
+        assert.ok(
+            typeof imported.updatedAt === "string" &&
+            !Number.isNaN(new Date(imported.updatedAt).getTime()),
+            `importChat normalizes ${name} updatedAt`
+        );
+        assert.ok(
+            typeof imported.createdAt === "string" &&
+            !Number.isNaN(new Date(imported.createdAt).getTime()),
+            `importChat normalizes ${name} createdAt`
+        );
+
+    });
+
+    check("C importChat normalizes missing/non-string/malformed timestamps", true);
+}
+
+
 testClearChat();
 testRegenerate();
 testExportChat();
 testImportChat();
+testImportChatCollision();
+testImportChatUniqueIdPreserved();
+testReimportSameExport();
+testImportTimestampNormalization();
 testDeleteMessage();
 
 // All event channels used above must be fully drained so the global

@@ -1366,6 +1366,26 @@ importChat(data) {
         }
 
 
+        // A duplicate ID would collide with the existing chat that
+        // already uses it, shadowing the imported chat in every
+        // id-based lookup (openChat/deleteChat/getCurrentChat). Only
+        // regenerate the ID on collision so valid exported chats
+        // round-trip unchanged.
+        if (
+
+            this.state.chats.some(
+
+                existingChat => existingChat.id === chat.id
+
+            )
+
+        ) {
+
+            chat.id = generateId("chat");
+
+        }
+
+
         // Normalize shape so sidebar/search/storage never crash on an
         // imported chat that is missing expected fields.
         if (typeof chat.title !== "string") {
@@ -1399,9 +1419,30 @@ importChat(data) {
         }
 
 
-        if (typeof chat.updatedAt !== "string") {
+        if (
+            typeof chat.updatedAt !== "string" ||
+            Number.isNaN(
+                new Date(
+                    chat.updatedAt
+                ).getTime()
+            )
+        ) {
 
             chat.updatedAt = new Date().toISOString();
+
+        }
+
+
+        if (
+            typeof chat.createdAt !== "string" ||
+            Number.isNaN(
+                new Date(
+                    chat.createdAt
+                ).getTime()
+            )
+        ) {
+
+            chat.createdAt = new Date().toISOString();
 
         }
 
