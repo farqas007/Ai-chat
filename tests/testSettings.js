@@ -122,9 +122,10 @@ function testDefaultsAndAccessors() {
         sound: false,
         autoScroll: true,
         sendWithEnter: true,
-        developerMode: false,
-        sidebar: true
+        developerMode: false
     }, "getAll() exposes the full merged settings");
+
+    assert.strictEqual(all.sidebar, undefined, "no phantom sidebar key remains");
 
     check("S defaults on empty storage", true);
 
@@ -345,8 +346,13 @@ function testSidebarFlag() {
     settings.setSidebar(false);
     assert.strictEqual(settings.isSidebarOpen(), false, "setSidebar(false) reflected");
 
+    const persisted = JSON.parse(storageMap.get(STORAGE_KEYS.SETTINGS));
+    assert.strictEqual(persisted.sidebarOpen, false, "persisted JSON stores sidebarOpen");
+    assert.strictEqual(persisted.sidebar, undefined, "persisted JSON has no phantom sidebar key");
+
     const reloaded = new Settings();
     assert.strictEqual(reloaded.isSidebarOpen(), false, "setSidebar persists");
+    assert.strictEqual(reloaded.get("sidebar"), undefined, "reloaded settings lack phantom sidebar key");
 
     check("S setSidebar()/isSidebarOpen() round-trips and persists", true);
 }

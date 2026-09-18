@@ -194,7 +194,7 @@ export class Storage {
 
                 language: "en",
 
-                sidebar: true
+                sidebarOpen: true
 
             }
 
