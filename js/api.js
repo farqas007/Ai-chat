@@ -685,8 +685,8 @@ async streamMessage(message, history = [], callbacks = {}) {
 
             const apiError = new APIError(response.status, messageText);
 
-            failStream(apiError);
-
+            /* Let the catch block below own the single failStream()
+               call so onError/api:error fire exactly once. */
             throw apiError;
 
         }

@@ -473,6 +473,42 @@ Events.on(
 );
 
 
+/*
+   Voice Provider Unavailable (BUG-2)
+   VoiceProviders emits this when a UI-selected provider has no
+   connected backend (B3). Surface it through the existing error
+   UI; the browser voice remains active.
+*/
+
+Events.on(
+
+    "voice:provider:unavailable",
+
+    payload=>{
+
+        const name =
+            payload && payload.name;
+
+        const fallback =
+            (payload && payload.fallbackTo) || "browser";
+
+        if (this.ui && typeof this.ui.showError === "function") {
+
+            this.ui.showError(
+
+                name
+                    ? `Voice provider "${name}" is unavailable. Using the ${fallback} voice instead.`
+                    : `Voice provider unavailable. Using the ${fallback} voice instead.`
+
+            );
+
+        }
+
+    }
+
+);
+
+
         /*
           Select Chat
         */

@@ -29,6 +29,7 @@ import { httpServerHandler } from "cloudflare:node";
 
 import { resolveAuthPolicy } from "../server/authPolicy.js";
 import { resolveServerConfig } from "../server/serverConfig.js";
+import { isValidImagePrompt } from "../server/imagePrompt.js";
 import {
     readUpstreamJson,
     handleUpstreamError,
@@ -402,7 +403,7 @@ app.post("/generate-image", requireAuth, imageCreateLimiter.middleware, async (r
     try {
         const { prompt } = req.body;
 
-        if (!prompt || !prompt.trim()) {
+        if (!isValidImagePrompt(prompt)) {
             return res.status(400).json({
                 success: false,
                 error: "Prompt is required."

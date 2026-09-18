@@ -140,6 +140,11 @@ initialize() {
     // original literal captured in the constructor.
     this.syncPlayerSettings();
 
+    // Apply the persisted provider so the active voice provider
+    // always matches saved settings. Unavailable providers are
+    // rejected by VoiceProviders (B3) and browser stays active.
+    this.applyProvider(this.settings.provider);
+
     // Keep settings (and the player binding) in sync when the
     // voice settings UI saves changes.
     Events.on(
@@ -157,6 +162,10 @@ initialize() {
             };
 
             this.syncPlayerSettings();
+
+            // Route the saved selection into the active provider
+            // (BUG-1: previously the provider choice was inert).
+            this.applyProvider(this.settings.provider);
 
         }
 
@@ -179,6 +188,71 @@ syncPlayerSettings() {
     }
 
 }
+
+    /* =======================================================
+       APPLY PROVIDER
+       Keeps the active VoiceProviders instance in sync with the
+       persisted provider setting. VoiceProviders.setProvider()
+       (B3) rejects unavailable providers, emits
+       voice:provider:unavailable and keeps "browser" active.
+       When a selection is rejected, the persisted settings are
+       written back to the active provider so provider state and
+       saved settings never drift apart.
+    ======================================================= */
+
+    applyProvider(name) {
+
+        if (
+            !this.providers ||
+            typeof this.providers.setProvider !== "function"
+        ) {
+
+            return false;
+
+        }
+
+        if (typeof name !== "string" || name === "") {
+
+            return false;
+
+        }
+
+        const accepted =
+            this.providers.setProvider(name) === true;
+
+        if (
+            !accepted &&
+            typeof this.providers.isUnavailable === "function" &&
+            this.providers.isUnavailable(name)
+        ) {
+
+            const fallback = "browser";
+
+            this.settings = {
+
+                ...this.settings,
+
+                provider: fallback
+
+            };
+
+            if (this.config && typeof this.config.set === "function") {
+
+                this.config.set("provider", fallback);
+
+                if (typeof this.config.save === "function") {
+
+                    this.config.save();
+
+                }
+
+            }
+
+        }
+
+        return accepted;
+
+    }
 
 /* =======================================================
    LOAD VOICES

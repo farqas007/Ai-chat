@@ -31,6 +31,7 @@ const REAL_TESTS = [
     "tests/testAgent.js",
     "tests/testApiErrorHandling.js",
     "tests/testApiStreaming.js",
+    "tests/testApiStreamSingleError.js",
     "tests/testAuthFrontend.js",
     "tests/testAuthMiddleware.js",
     "tests/testAuthPolicy.js",
@@ -59,6 +60,7 @@ const REAL_TESTS = [
     "tests/testImageGenerator.js",
 
     "tests/testImagePersistence.js",
+    "tests/testImagePromptValidation.js",
     "tests/testMarkdown.js",
     "tests/testMemory.js",
     "tests/testNaturalLanguageEdit.js",
@@ -84,6 +86,8 @@ const REAL_TESTS = [
     "tests/testVoiceInput.js",
     "tests/testVoiceSettings.js",
     "tests/testVoiceProviderFallback.js",
+    "tests/testVoiceProviderSelection.js",
+    "tests/testVoiceProviderFeedback.js",
     "tests/testWorkerSecurity.js",
     "tests/testWorkerSessionAuth.js",
     "tests/testWorkerStreamChat.js"

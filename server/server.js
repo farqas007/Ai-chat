@@ -17,6 +17,7 @@ import { handleCodexRequest } from "./codexHandler.js";
 import { handleStreamChat } from "./streamChat.js";
 import { isSensitivePath } from "./pathGuard.js";
 import { resolveServerConfig } from "./serverConfig.js";
+import { isValidImagePrompt } from "./imagePrompt.js";
 import {
     readUpstreamJson,
     handleUpstreamError,
@@ -572,7 +573,7 @@ app.post("/generate-image",
     try {
         const { prompt } = req.body;
 
-        if (!prompt || !prompt.trim()) {
+        if (!isValidImagePrompt(prompt)) {
             return res.status(400).json({
                 success: false,
                 error: "Prompt is required."
