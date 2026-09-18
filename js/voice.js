@@ -11,7 +11,11 @@ import { VoiceQueue } from "./voiceQueue.js";
 import { VoicePlayer } from "./voicePlayer.js";
 import { VoiceProviders } from "./voiceProviders.js";
 import { StreamVoice } from "./streamVoice.js";
-import { VoiceSettings } from "./voiceSettings.js";
+import {
+    VoiceSettings,
+    resolveRecognitionLanguage,
+    normalizeVoiceSettings
+} from "./voiceSettings.js";
 import { VoiceCommands } from "./voiceCommands.js";
 import { LanguageDetector } from "./languageDetector.js";
 
@@ -56,7 +60,9 @@ export class Voice {
 
 this.settings = {
 
-    language: "ur-PK",
+    language: "auto",
+
+    voiceLabel: "",
 
     rate: 0.92,
 
@@ -126,13 +132,13 @@ initialize() {
     // Load saved settings
     if (this.config) {
 
-        this.settings = {
+        this.settings = normalizeVoiceSettings({
 
             ...this.settings,
 
             ...this.config.load()
 
-        };
+        });
 
     }
 
@@ -145,6 +151,10 @@ initialize() {
     // rejected by VoiceProviders (B3) and browser stays active.
     this.applyProvider(this.settings.provider);
 
+    // Keep the recognition engine in sync with the persisted
+    // recognition language after the merge above.
+    this.applyRecognition();
+
     // Keep settings (and the player binding) in sync when the
     // voice settings UI saves changes.
     Events.on(
@@ -153,19 +163,22 @@ initialize() {
 
         settings => {
 
-            this.settings = {
+            this.settings = normalizeVoiceSettings({
 
                 ...this.settings,
 
                 ...settings
 
-            };
+            });
 
             this.syncPlayerSettings();
 
             // Route the saved selection into the active provider
             // (BUG-1: previously the provider choice was inert).
             this.applyProvider(this.settings.provider);
+
+            // Recognition language follows the saved style selection.
+            this.applyRecognition();
 
         }
 
@@ -322,7 +335,7 @@ loadVoices() {
 
         this.recognition.lang =
 
-            this.settings.language;
+            this.getRecognitionLanguage();
 
 
 
@@ -581,11 +594,10 @@ speak(text) {
        SETTINGS
     ======================================================= */
 
+setSettings(options){
 
-    setSettings(options){
 
-
-        this.settings = {
+        this.settings = normalizeVoiceSettings({
 
 
             ...this.settings,
@@ -594,8 +606,7 @@ speak(text) {
             ...options
 
 
-        };
-
+        });
 
 
         if(this.recognition){
@@ -603,7 +614,8 @@ speak(text) {
 
             this.recognition.lang =
 
-                this.settings.language;
+
+                this.getRecognitionLanguage();
 
 
         }
@@ -611,6 +623,64 @@ speak(text) {
 
         this.syncPlayerSettings();
 
+
+    }
+
+    /* =======================================================
+       GET RECOGNITION LANGUAGE
+       Returns a valid BCP-47 tag for SpeechRecognition.lang.
+       An explicitly stored recognitionLanguage (persisted by the
+       voice settings UI) wins; otherwise the recognition tag is
+       derived from the style "language" setting. Runtime TTS
+       voice labels never flow into the recognition engine.
+    ======================================================= */
+
+    getRecognitionLanguage() {
+
+        if (
+            !this.settings ||
+            typeof this.settings !== "object"
+        ) {
+
+            return "ur-PK";
+
+        }
+
+        const stored = this.settings.recognitionLanguage;
+
+        if (
+            typeof stored === "string" &&
+            stored.trim() !== ""
+        ) {
+
+            return resolveRecognitionLanguage(stored);
+
+        }
+
+        return resolveRecognitionLanguage(
+
+            this.settings.language || "auto"
+
+        );
+
+    }
+
+    /* =======================================================
+       APPLY RECOGNITION
+       Pushes the current recognition language into the live
+       SpeechRecognition instance (afe to call when recognition
+       is unsupported or not yet created).
+    ======================================================= */
+
+    applyRecognition() {
+
+        if (!this.recognition) {
+
+            return;
+
+        }
+
+        this.recognition.lang = this.getRecognitionLanguage();
 
     }
 

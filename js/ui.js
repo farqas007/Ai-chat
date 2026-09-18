@@ -85,6 +85,15 @@ input:
                 ),
 
 
+            sidebarOverlay:
+
+                document.querySelector(
+
+                    "#sidebarOverlay"
+
+                ),
+
+
             themeToggle:
 
                 document.querySelector(
@@ -354,6 +363,27 @@ if(this.elements.imageButton){
 
 
             this.elements.menuButton.addEventListener(
+
+                "click",
+
+                ()=>{
+
+                    Events.emit("menu:toggle");
+
+                }
+
+            );
+
+
+        }
+
+
+        /* Prevent the mobile backdrop from trapping the app: a
+           tap on the dimmed area closes the sidebar drawer. */
+        if(this.elements.sidebarOverlay){
+
+
+            this.elements.sidebarOverlay.addEventListener(
 
                 "click",
 

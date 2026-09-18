@@ -109,6 +109,11 @@
     </aside>
 
 
+    <!-- Mobile sidebar backdrop (click outside or Esc to close) -->
+
+    <div id="sidebarOverlay" class="hidden" aria-hidden="true"></div>
+
+
 
 
     <!-- Main Area -->
@@ -227,6 +232,8 @@
 
                 placeholder="Type your message..."
 
+                aria-label="Type your message"
+
                 rows="1">
 
             </textarea>
@@ -272,13 +279,13 @@
 
 <!-- Settings Modal -->
 
-<div id="settingsModal" class="hidden">
+<div id="settingsModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
 
 
     <div class="settings-box">
 
 
-        <h2>
+        <h2 id="settingsModalTitle">
 
             Settings
 
@@ -365,13 +372,13 @@
 
 <!-- Login Overlay -->
 
-<div id="loginOverlay" class="hidden">
+<div id="loginOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="loginOverlayTitle">
 
 
     <div class="login-box">
 
 
-        <h2>
+        <h2 id="loginOverlayTitle">
 
             Sign in
 
@@ -395,6 +402,8 @@
                 type="password"
 
                 placeholder="Access password"
+
+                aria-label="Access password"
 
                 autocomplete="current-password"
 

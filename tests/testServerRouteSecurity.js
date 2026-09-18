@@ -657,6 +657,21 @@ async function runAuthServer() {
             setCookie.includes("ai_chat_session")
         );
 
+        const cookieAttrs = setCookie.toLowerCase();
+
+        check(
+            "B plain-HTTP non-production cookie is NOT Secure (PH-03)",
+            r.json.success === true &&
+            setCookie.includes("ai_chat_session") &&
+            cookieAttrs.includes("secure") === false
+        );
+
+        check(
+            "B cookie keeps HttpOnly + SameSite=Strict",
+            cookieAttrs.includes("httponly") &&
+            cookieAttrs.includes("samesite=strict")
+        );
+
         const cookieValue = setCookie.split(";")[0];
 
         r = await request(
@@ -682,9 +697,64 @@ async function runAuthServer() {
 }
 
 
+/* =========================================================
+   SERVER C — production auth keeps the Secure cookie attribute
+   (PH-03: Secure becomes conditional for plain-HTTP LAN/dev, but
+   MUST remain set in production no matter what).
+======================================================== */
+
+async function runProductionAuthServer() {
+
+    const token = "f5-prod-secret-token";
+
+    const { child, port } = await spawnServer({
+        [BASE]: token,
+        NODE_ENV: "production"
+    });
+
+    try {
+
+        const r = await request(port, "/api/login", {
+            method: "POST",
+            body: { password: token }
+        });
+
+        check(
+            "C production login still works over the test transport",
+            r.status === 200 && r.json && r.json.success === true,
+            `status=${r.status} body=${r.text}`
+        );
+
+        const setCookie = r.headers.get("set-cookie") || "";
+        const cookieAttrs = setCookie.toLowerCase();
+
+        check(
+            "C production cookie STILL carries Secure (PH-03)",
+            setCookie.includes("ai_chat_session") &&
+            cookieAttrs.includes("secure") === true,
+            `set-cookie=${setCookie}`
+        );
+
+        check(
+            "C production cookie keeps HttpOnly + SameSite=Strict",
+            cookieAttrs.includes("httponly") &&
+            cookieAttrs.includes("samesite=strict")
+        );
+
+    } finally {
+
+        await stopServer(child);
+
+    }
+
+}
+
+
 await runNoAuthServer();
 
 await runAuthServer();
+
+await runProductionAuthServer();
 
 
 console.log(`\n${passed} passed, ${failed} failed`);

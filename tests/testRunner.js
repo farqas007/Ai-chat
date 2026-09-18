@@ -27,6 +27,7 @@ const repoRoot = path.join(__dirname, "..");
 /* Real assertion-based test files (each asserts and exits non-zero on failure). */
 
 const REAL_TESTS = [
+    "tests/testA11yDialogs.js",
     "tests/testAIController.js",
     "tests/testAgent.js",
     "tests/testApiErrorHandling.js",
@@ -84,6 +85,7 @@ const REAL_TESTS = [
     "tests/testVoiceCommandWiring.js",
     "tests/testVoiceFixes.js",
     "tests/testVoiceInput.js",
+    "tests/testVoiceLanguageSeparation.js",
     "tests/testVoiceSettings.js",
     "tests/testVoiceProviderFallback.js",
     "tests/testVoiceProviderSelection.js",

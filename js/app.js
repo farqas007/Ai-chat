@@ -194,10 +194,14 @@ if (this.chat.state.currentChatId) {
 
             this.voice.initialize();
 
-            // Voice input uses the saved TTS language when present,
-            // falling back to navigator.language inside VoiceInput.
+            // Voice input uses the saved recognition language (a
+            // valid BCP-47 tag) when present, falling back to
+            // navigator.language inside VoiceInput. The settings
+            // modal's TTS voice label is never used here.
             this.voiceInput.initialize({
-                language: this.voice?.settings?.language
+                language: this.voice?.getRecognitionLanguage
+                    ? this.voice.getRecognitionLanguage()
+                    : this.voice?.settings?.recognitionLanguage || "ur-PK"
             });
 
             this.ui.setVoiceInputSupported(
@@ -660,14 +664,15 @@ Events.on(
                         finalized = true;
 
 
-                        const html =
-
-                            this.markdown.render(fullText);
-
-
+                        // Store the canonical plaintext response.
+                        // Markdown is rendered exactly once, at the UI
+                        // layer (chat.updateMessage -> ui.updateStreaming
+                        // -Message with renderMarkdown=true). Keeping
+                        // plaintext in history means the provider never
+                        // receives the rendered HTML wrapper (PH-02).
                         this.chat.updateMessage(
                             assistant.id,
-                            html,
+                            fullText,
                             chatId
                         );
 
@@ -1335,6 +1340,72 @@ Events.on(
 
 
         /*
+           Escape key: close the focused surface (PH-05).
+           The login overlay is intentionally NOT dismissible with
+           Escape - it gates access and is driven by the server.
+        */
+
+        const onEscapeKey = (event) => {
+
+            if (
+                !event ||
+                (event.key !== "Escape" && event.keyCode !== 27)
+            ) {
+
+                return;
+
+            }
+
+            const modal = this.ui && this.ui.elements &&
+                this.ui.elements.settingsModal;
+
+            if (
+                modal &&
+                typeof modal.classList !== "undefined" &&
+                typeof modal.classList.contains === "function" &&
+                !modal.classList.contains("hidden")
+            ) {
+
+                Events.emit("settings:close");
+
+                return;
+
+            }
+
+            if (
+                this.voiceUI &&
+                this.voiceUI.modal &&
+                this.voiceUI.modal.style &&
+                this.voiceUI.modal.style.display === "flex"
+            ) {
+
+                this.voiceUI.hide();
+
+                return;
+
+            }
+
+            if (this.sidebarIsOpenOnMobile()) {
+
+                this.closeSidebar();
+
+            }
+
+        };
+
+        if (
+            typeof document !== "undefined" &&
+            document &&
+            typeof document.addEventListener === "function"
+        ) {
+
+            document.addEventListener("keydown", onEscapeKey);
+
+        }
+
+
+
+        /*
            Theme Toggle
         */
 
@@ -1398,6 +1469,20 @@ Events.on(
 
                 modal.style.display = "flex";
 
+                // Move focus into the dialog so screen readers and
+                // keyboard users start inside it (PH-05).
+                const closeButton =
+
+                    typeof modal.querySelector === "function"
+                        ? modal.querySelector("#closeSettings")
+                        : null;
+
+                if (closeButton && typeof closeButton.focus === "function") {
+
+                    closeButton.focus();
+
+                }
+
             }
 
         );
@@ -1432,7 +1517,10 @@ Events.on(
 
                 if (this.voice) {
 
-                    this.voice.setSettings({ language: value });
+                    // The settings modal voice picker selects a TTS
+                    // voice label; it must never overwrite the
+                    // recognition language (PH-01 separation).
+                    this.voice.setSettings({ voiceLabel: value });
 
                 }
 
@@ -1583,18 +1671,103 @@ Events.on(
 
 
     toggleSidebar(){
+        const sidebar = document.querySelector("#sidebar");
+
+        if (!sidebar) return;
+
+        const willOpen = !sidebar.classList.contains("active");
+
+        if (willOpen) {
+
+            this.openSidebar();
+
+        } else {
+
+            this.closeSidebar();
+
+        }
+    }
+
+    openSidebar(){
 
         const sidebar = document.querySelector("#sidebar");
 
         if (!sidebar) return;
 
-        sidebar.classList.toggle("active");
+        sidebar.classList.add("active");
 
-        const open = sidebar.classList.contains("active") ||
+        this.syncSidebarOverlay(true);
 
-            window.innerWidth > 768;
+        this.settings.setSidebar(true);
 
-        this.settings.setSidebar(open);
+    }
+
+    closeSidebar(){
+
+        const sidebar = document.querySelector("#sidebar");
+
+        if (!sidebar) return;
+
+        sidebar.classList.remove("active");
+
+        this.syncSidebarOverlay(false);
+
+        this.settings.setSidebar(window.innerWidth > 768);
+
+    }
+
+    /* True only when the mobile drawer is actually open. */
+    sidebarIsOpenOnMobile(){
+
+        if (window.innerWidth > 768) {
+
+            return false;
+
+        }
+
+        const sidebar = document.querySelector("#sidebar");
+
+        return !!sidebar && sidebar.classList.contains("active");
+
+    }
+
+    /* Keeps the mobile backdrop in sync with the drawer. The
+       backdrop only exists on mobile (CSS hides it on desktop).
+       `hidden` and `visible` are kept mutually exclusive so the
+       global `.hidden { display:none !important }` utility can
+       never win over the visible state. */
+    syncSidebarOverlay(open){
+
+        const overlay = this.ui &&
+            this.ui.elements &&
+            this.ui.elements.sidebarOverlay;
+
+        if (!overlay) return;
+
+        const show = Boolean(open) && window.innerWidth <= 768;
+
+        if (show) {
+
+            overlay.classList.remove("hidden");
+
+            overlay.classList.add("visible");
+
+        } else {
+
+            overlay.classList.remove("visible");
+
+            overlay.classList.add("hidden");
+
+        }
+
+        if (typeof overlay.setAttribute === "function") {
+
+            overlay.setAttribute(
+                "aria-hidden",
+                show ? "false" : "true"
+            );
+
+        }
 
     }
 
@@ -1675,7 +1848,12 @@ Events.on(
 
         });
 
-        const current = this.voice?.settings?.language;
+        // Pre-select the chosen TTS voice label. Fall back to the legacy
+        // in-memory language value (display only — the recognition
+        // language is never written from here).
+        const current = this.voice?.settings?.voiceLabel ||
+            this.voice?.settings?.language ||
+            "";
 
         select.value = current || "";
 

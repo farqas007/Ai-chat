@@ -5,6 +5,7 @@
 =========================================================== */
 
 import Events from "./events.js";
+import { resolveRecognitionLanguage } from "./voiceSettings.js";
 
 export class VoiceUI {
 
@@ -42,11 +43,17 @@ export class VoiceUI {
 
         this.modal.className = "voice-settings";
 
+        this.modal.setAttribute("role", "dialog");
+
+        this.modal.setAttribute("aria-modal", "true");
+
+        this.modal.setAttribute("aria-labelledby", "voiceSettingsTitle");
+
         this.modal.innerHTML = `
 
 <div class="voice-window">
 
-<h2>Voice Settings</h2>
+<h2 id="voiceSettingsTitle">Voice Settings</h2>
 
 <label>
 
@@ -225,6 +232,24 @@ Close
 
         this.modal.style.display = "flex";
 
+        // Move focus into the dialog (PH-05).
+        if (typeof this.modal.querySelector === "function") {
+
+            const firstControl =
+
+                this.modal.querySelector("#voice-provider");
+
+            if (
+                firstControl &&
+                typeof firstControl.focus === "function"
+            ) {
+
+                firstControl.focus();
+
+            }
+
+        }
+
     }
 
     /* =======================================================
@@ -335,6 +360,14 @@ Close
 
     save(){
 
+        const language =
+
+            this.modal.querySelector(
+
+                "#voice-language"
+
+            ).value;
+
         this.settings.update({
 
             provider:
@@ -345,13 +378,17 @@ Close
 
             ).value,
 
-            language:
+            language,
 
-            this.modal.querySelector(
+            recognitionLanguage:
 
-                "#voice-language"
+            resolveRecognitionLanguage(
 
-            ).value,
+                language,
+
+                "ur-PK"
+
+            ),
 
             rate:Number(
 

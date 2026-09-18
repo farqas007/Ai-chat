@@ -89,6 +89,20 @@ const SESSION_COOKIE_OPTIONS = {
     maxAge: DEFAULT_TTL_MS
 };
 
+// Secure flag for the session cookie, resolved per request:
+// - Production ALWAYS keeps Secure (fail closed - never weakened).
+// - Native HTTPS requests keep it.
+// - Non-production plain-HTTP LAN/development deployments may set
+//   the HttpOnly, SameSite=Strict cookie without Secure, so login
+//   works where the server intentionally serves plain HTTP.
+//   (X-Forwarded-Proto is intentionally NOT trusted here.)
+function sessionCookieSecure(req) {
+    if (AUTH_POLICY.isProduction) {
+        return true;
+    }
+    return req.secure === true;
+}
+
 // Comma-separated allowlist, e.g. CORS_ORIGIN=https://app.example.com,https://dev.example.com
 // Empty => same-origin requests only (no cross-origin website can call the API).
 // Resolved from the environment in serverConfig.js.
@@ -267,7 +281,10 @@ app.post("/api/login",
             });
         }
 
-        res.cookie(SESSION_COOKIE, result.sessionId, SESSION_COOKIE_OPTIONS);
+        res.cookie(SESSION_COOKIE, result.sessionId, {
+            ...SESSION_COOKIE_OPTIONS,
+            secure: sessionCookieSecure(req)
+        });
 
         res.json({ success: true });
 
@@ -287,7 +304,12 @@ app.post("/api/logout", (req, res) => {
 
     res.clearCookie(
         SESSION_COOKIE,
-        { httpOnly: true, secure: true, sameSite: "strict", path: "/" }
+        {
+            httpOnly: true,
+            secure: sessionCookieSecure(req),
+            sameSite: "strict",
+            path: "/"
+        }
     );
 
     res.json({ success: true });

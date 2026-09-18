@@ -81,6 +81,40 @@
 }
 
 
+/* Mobile sidebar backdrop: dims the main area behind the drawer.
+   Shown only while the sidebar is open on mobile (see app.js
+   syncSidebarOverlay); never visible on desktop. */
+#sidebarOverlay{
+
+    position:fixed;
+
+    inset:0;
+
+    z-index:990;
+
+    background:rgba(15, 23, 42, 0.45);
+
+    display:none;
+
+}
+
+#sidebarOverlay.visible{
+
+    display:block;
+
+}
+
+@media (min-width:769px){
+
+    #sidebarOverlay{
+
+        display:none !important;
+
+    }
+
+}
+
+
 /* ===========================================================
    MOBILE
 =========================================================== */

@@ -140,8 +140,15 @@ function createHarness() {
         hideError: () => { calls.hideError++; },
         setSending: v => calls.sending.push(v),
         removeMessage: id => calls.removeMessage.push(id),
-        updateStreamingMessage: (id, html, renderMarkdown) =>
-            calls.streamUpdated.push([id, html, renderMarkdown]),
+        // Mirrors the real ui.updateStreamingMessage: Markdown is
+        // rendered at THIS layer only when renderMarkdown is not
+        // explicitly false (the final plaintext becomes HTML here).
+        updateStreamingMessage: (id, html, renderMarkdown) => {
+            if (renderMarkdown !== false) {
+                calls.renderCount++;
+            }
+            calls.streamUpdated.push([id, html, renderMarkdown]);
+        },
         appendMessage() {}, updateMessage() {}, renderChat() {},
         clearMessages() {}, showEmptyState() {}, setTitle() {},
         scrollToBottom() {}, setUnreadBadge() {},
@@ -158,10 +165,7 @@ function createHarness() {
     app.chat = chat;
     app.ui = ui;
     app.markdown = {
-        render: t => {
-            calls.renderCount++;
-            return `<p>${t}</p>`;
-        }
+        render: t => `<p>${t}</p>`
     };
     app.codeblock = { refresh() {} };
     app.voice = {
@@ -248,8 +252,8 @@ async function scenarioProgressiveStream() {
     const assistant = messages[1];
 
     assert(
-        "P1 assistant bubble carries the final rendered HTML",
-        assistant.content === "<p>Hello world</p>"
+        "P1 assistant bubble carries the canonical plaintext (rendered only in the DOM)",
+        assistant.content === "Hello world"
     );
 
     const deltaUpdates = calls.streamUpdated.slice(0, 2);
@@ -268,28 +272,37 @@ async function scenarioProgressiveStream() {
     );
 
     assert(
-        "P1 Markdown rendered exactly once at completion",
+        "P1 final plaintext persisted once completed",
+        calls.savedAssistantContents.some(
+            contents => contents.includes("Hello world")
+        )
+    );
+
+    assert(
+        "P1 mid-stream partial delta never persisted",
+        calls.savedAssistantContents.every(
+            contents => contents.every(content => content !== "Hello ")
+        )
+    );
+
+    assert(
+        "P1 no rendered HTML wrapper ever persisted",
+        calls.savedAssistantContents.every(
+            contents => contents.every(
+                content => !content.startsWith("<p>") && !content.startsWith("<")
+            )
+        )
+    );
+
+    assert(
+        "P1 final plaintext rendered exactly once at the UI layer",
         calls.renderCount === 1
     );
 
     assert(
-        "P1 no partial delta ever persisted to history",
-        calls.savedAssistantContents.every(
-            contents => contents.every(content => content !== "Hello " && content !== "Hello world")
-        )
-    );
-
-    assert(
-        "P1 final content persisted once completed",
-        calls.savedAssistantContents.some(
-            contents => contents.includes("<p>Hello world</p>")
-        )
-    );
-
-    assert(
-        "P1 mocked final DOM update renders the completed Markdown",
+        "P1 mocked final DOM update flags the Markdown render",
         calls.streamUpdated.some(
-            ([id, html, flag]) => id === assistant.id && html === "<p>Hello world</p>" && flag !== false
+            ([id, html, flag]) => id === assistant.id && html === "Hello world" && flag !== false
         )
     );
 
@@ -375,9 +388,9 @@ async function scenarioStaleDeltaAfterSwitch() {
     await settle();
 
     assert(
-        "S2 late completion finalized origin chat A",
+        "S2 late completion finalized origin chat A with plaintext",
         findChat(store, a.id).messages.length === 2 &&
-        findChat(store, a.id).messages[1].content === "<p>final from A</p>"
+        findChat(store, a.id).messages[1].content === "final from A"
     );
 
     assert(
@@ -533,20 +546,22 @@ async function scenarioExactlyOnceFinalize() {
     const messages = findChat(store, c.id).messages;
 
     assert(
-        "F1 single assistant message finalized",
+        "F1 single assistant message finalized with plaintext",
         messages.length === 2 &&
         messages[1].role === "assistant" &&
-        messages[1].content === "<p>once</p>"
+        messages[1].content === "once"
     );
 
     assert(
-        "F1 Markdown rendered exactly once",
+        "F1 Markdown rendered exactly once at the UI layer",
         calls.renderCount === 1
     );
 
     assert(
-        "F1 no duplicate final DOM update",
-        calls.streamUpdated.filter(([, html]) => html === "<p>once</p>").length === 1
+        "F1 no duplicate final DOM render of the completion",
+        calls.streamUpdated.filter(
+            ([, html, flag]) => html === "once" && flag !== false
+        ).length === 1
     );
 
     assert(
@@ -619,6 +634,94 @@ async function scenarioHttpFailure() {
 
 
 /* ===========================================================
+   SCENARIO 7 (PH-02) — The history handed to the provider is the
+   canonical plaintext, never the rendered HTML wrapper/classes.
+   A Markdown-shaped model reply is finalized as plaintext, then a
+   second turn's provider request sees that plaintext in history.
+=========================================================== */
+
+async function scenarioProviderHistoryIsPlaintext() {
+
+    h.resetCalls();
+
+    const capturedHistories = [];
+
+    let turn = 0;
+
+    app.api.streamMessage = async (_m, history, callbacks) => {
+
+        capturedHistories.push(history.map(msg => msg.content));
+
+        turn += 1;
+
+        if (turn === 1) {
+
+            callbacks.onDelta(
+                "```js\n",
+                "```js\n"
+            );
+
+            callbacks.onDone(
+                "````js\`\nconst x = 1;\n```"
+            );
+
+            return "````js\`\nconst x = 1;\n```";
+
+        }
+
+        callbacks.onDone("Second reply");
+
+        return "Second reply";
+
+    };
+
+    const c = chat.createChat("History Chat");
+
+    Events.emit("chat:send", "first message");
+
+    await settle();
+
+    const assistantContent =
+        findChat(store, c.id).messages[1].content;
+
+    assert(
+        "H1 first assistant reply stored as plaintext (no wrapper)",
+        assistantContent.indexOf("<") === -1 &&
+        /class=/.test(assistantContent) === false
+    );
+
+    // Second turn: the provider now receives the first assistant
+    // reply as plaintext history.
+    Events.emit("chat:send", "second message");
+
+    await settle();
+
+    const secondHistory = capturedHistories[1] || [];
+
+    assert(
+        "H1 second-turn history contains the plaintext first reply",
+        secondHistory.includes(assistantContent)
+    );
+
+    assert(
+        "H1 provider history contains no rendered HTML wrapper/classes",
+        secondHistory.every(
+            content => /class=/.test(content) === false &&
+                /\sdata-/.test(content) === false
+        )
+    );
+
+    const stored = findChat(store, c.id).messages[1].content;
+
+    assert(
+        "H1 persisted assistant reply is the canonical plaintext",
+        stored === assistantContent
+    );
+
+}
+
+
+/* ===========================================================
    RUN ALL SCENARIOS
 =========================================================== */
 
@@ -633,6 +736,8 @@ await scenarioSilentAbort();
 await scenarioExactlyOnceFinalize();
 
 await scenarioHttpFailure();
+
+await scenarioProviderHistoryIsPlaintext();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

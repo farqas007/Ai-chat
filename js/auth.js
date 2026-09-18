@@ -27,6 +27,12 @@ function showOverlay() {
 
         overlay.classList.remove("hidden");
 
+        if (passwordInput && typeof passwordInput.focus === "function") {
+
+            passwordInput.focus();
+
+        }
+
     }
 
 }
