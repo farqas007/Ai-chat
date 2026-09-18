@@ -1000,6 +1000,34 @@ catch(error){
 
             text=>{
 
+                /*
+                  PH06-3 — route recognized speech through the existing
+                  VoiceCommands dispatcher first. Recognized commands are
+                  executed via the existing command event listeners and are
+                  NOT typed into the composer. Non-command speech keeps the
+                  original behavior: it is remembered as the last spoken text
+                  (so "repeat" can speak it) and inserted into the composer.
+                */
+
+                const commands =
+                    this.voice && this.voice.commands;
+
+                if (commands && typeof commands.handle === "function") {
+
+                    if (commands.handle(text) === true) {
+
+                        return;
+
+                    }
+
+                    if (typeof commands.setLastSpeech === "function" && text) {
+
+                        commands.setLastSpeech(text);
+
+                    }
+
+                }
+
                 // Transcript goes into the composer only. The user
                 // sends it through the normal send flow.
                 this.ui.insertVoiceText(text);
