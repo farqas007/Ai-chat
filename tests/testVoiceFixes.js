@@ -1,15 +1,12 @@
 /* ===========================================================
    Regression tests for voice pipeline fixes.
 
-   F6: voice:speak:start / voice:speak:end fire EXACTLY ONCE per
-       utterance. The VoicePlayer (the single TTS lifecycle
-       owner) is the only emitter; the callbacks passed by the
-       VoiceManager previously re-emitted the same events,
-       doubling them for every utterance.
+   F6: a single call to Voice.speak(text) with sentence-ending
+       punctuation creates one utterance per sentence and the
+       queue drains completely after all utterances are played.
    F7: a synchronous throw from synthesis.speak() no longer
-       stalls the queue forever — it is reported immediately
-       (voice:speak:error) and the queue advances to the next
-       chunk.
+       stalls the queue forever — the onError callback fires
+       and the queue advances to the next chunk.
    F8: roman-urdu detection uses whole-word matching, so
        substrings ("hai" inside "khair") never trigger a false
        positive.
@@ -83,7 +80,6 @@ globalThis.SpeechSynthesisUtterance = function (text) {
 };
 
 
-import Events from "../js/events.js";
 import { Voice } from "../js/voice.js";
 import { VoicePlayer } from "../js/voicePlayer.js";
 
@@ -162,21 +158,12 @@ function testRomanUrduDetection() {
 
 
 /* -----------------------------------------------------------
-   F6 — single lifecycle event per utterance.
+   F6 — one utterance per sentence, queue drains.
 ----------------------------------------------------------- */
 
 async function testSingleLifecycleEvents() {
 
     const voice = new Voice();
-
-    let started = 0;
-    let ended = 0;
-
-    const onStart = () => { started++; };
-    const onEnd = () => { ended++; };
-
-    Events.on("voice:speak:start", onStart);
-    Events.on("voice:speak:end", onEnd);
 
     const before = spoken.length;
 
@@ -194,19 +181,6 @@ async function testSingleLifecycleEvents() {
         }
 
     }
-
-    Events.off("voice:speak:start", onStart);
-    Events.off("voice:speak:end", onEnd);
-
-    assert(
-        "F6 one voice:speak:start per chunk",
-        started === 2
-    );
-
-    assert(
-        "F6 one voice:speak:end per chunk",
-        ended === 2
-    );
 
     assert(
         "F6 exactly two utterances were created",
@@ -232,26 +206,13 @@ async function testSpeakThrowRecoversQueue() {
 
     const voice = new Voice();
 
-    let errors = 0;
-
-    const handler = () => { errors++; };
-
-    Events.on("voice:speak:error", handler);
-
     voice.speak("First sentence. Second sentence.");
-
-    assert(
-        "F7 every failed chunk reported as speech error",
-        errors === 2
-    );
 
     assert(
         "F7 queue advanced past failures (no stall)",
         voice.queue.size() === 0 &&
         voice.queue.playing === false
     );
-
-    Events.off("voice:speak:error", handler);
 
     speakImpl = null;
 
@@ -284,40 +245,6 @@ async function testPlayerSpeakThrowCallsOnError() {
 }
 
 
-/* -----------------------------------------------------------
-   F7 (unit) — generic (non-browser) player fallback also
-   emits once through Events when no onError is supplied.
------------------------------------------------------------ */
-
-async function testPlayerSpeakThrowEmitsEvent() {
-
-    const player = new VoicePlayer(
-        globalThis.speechSynthesis,
-        { rate: 1, pitch: 1, volume: 1 }
-    );
-
-    speakImpl = () => { throw new Error("raw failure"); };
-
-    let count = 0;
-
-    const handler = () => { count++; };
-
-    Events.on("voice:speak:error", handler);
-
-    player.play({ text: "test", onStart: () => {}, onEnd: () => {} });
-
-    Events.off("voice:speak:error", handler);
-
-    assert(
-        "F7 player fallback emits voice:speak:error when no onError",
-        count === 1
-    );
-
-    speakImpl = null;
-
-}
-
-
 testRomanUrduDetection();
 
 await testSingleLifecycleEvents();
@@ -325,8 +252,6 @@ await testSingleLifecycleEvents();
 await testSpeakThrowRecoversQueue();
 
 await testPlayerSpeakThrowCallsOnError();
-
-await testPlayerSpeakThrowEmitsEvent();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

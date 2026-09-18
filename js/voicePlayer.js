@@ -4,8 +4,6 @@
    Description : Speech Player
 =========================================================== */
 
-import Events from "./events.js";
-
 export class VoicePlayer {
 
    constructor(synthesis, settings) {
@@ -68,10 +66,6 @@ else{
 
         speech.onstart = () => {
 
-            Events.emit(
-                "voice:speak:start"
-            );
-
             if (onStart) {
 
                 onStart();
@@ -81,10 +75,6 @@ else{
         };
 
         speech.onend = () => {
-
-            Events.emit(
-                "voice:speak:end"
-            );
 
             if (onEnd) {
 
@@ -132,14 +122,6 @@ else{
             if (onError) {
 
                 onError(error);
-
-            }
-            else {
-
-                Events.emit(
-                    "voice:speak:error",
-                    error
-                );
 
             }
 

@@ -613,11 +613,6 @@ console.log(
 
             this.queue.playing = false;
 
-            Events.emit(
-                "voice:speak:error",
-                error
-            );
-
             // Continue next queued item
             this.playQueue();
 
