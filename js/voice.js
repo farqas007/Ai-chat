@@ -36,8 +36,6 @@ export class Voice {
 
     this.synthesis = window.speechSynthesis;
 
-    this.recognition = null;
-
     this.voices = [];
 
 
@@ -46,8 +44,6 @@ export class Voice {
     ========================================== */
 
     this.state = {
-
-        listening: false,
 
         speaking: false
 
@@ -126,9 +122,6 @@ initialize() {
     // Load browser voices
     this.loadVoices();
 
-    // Speech Recognition
-    this.setupSpeechRecognition();
-
     // Load saved settings
     if (this.config) {
 
@@ -151,10 +144,6 @@ initialize() {
     // rejected by VoiceProviders (B3) and browser stays active.
     this.applyProvider(this.settings.provider);
 
-    // Keep the recognition engine in sync with the persisted
-    // recognition language after the merge above.
-    this.applyRecognition();
-
     // Keep settings (and the player binding) in sync when the
     // voice settings UI saves changes.
     Events.on(
@@ -176,9 +165,6 @@ initialize() {
             // Route the saved selection into the active provider
             // (BUG-1: previously the provider choice was inert).
             this.applyProvider(this.settings.provider);
-
-            // Recognition language follows the saved style selection.
-            this.applyRecognition();
 
         }
 
@@ -293,232 +279,6 @@ loadVoices() {
 
 }
 
-    /* =======================================================
-       SPEECH RECOGNITION SETUP
-    ======================================================= */
-
-
-    setupSpeechRecognition(){
-
-
-
-        const SpeechRecognition =
-
-            window.SpeechRecognition ||
-
-            window.webkitSpeechRecognition;
-
-
-
-        if(!SpeechRecognition){
-
-
-            console.warn(
-
-                "Speech Recognition Not Supported"
-
-            );
-
-
-            return;
-
-
-        }
-
-
-
-        this.recognition =
-
-            new SpeechRecognition();
-
-
-
-        this.recognition.lang =
-
-            this.getRecognitionLanguage();
-
-
-
-        this.recognition.continuous = false;
-
-
-        this.recognition.interimResults = true;
-
-
-
-
-
-        this.recognition.onstart = ()=>{
-
-
-            this.state.listening = true;
-
-
-
-            Events.emit(
-
-                "voice:start"
-
-            );
-
-
-        };
-
-
-
-
-
-        this.recognition.onresult =
-
-        event => {
-
-
-
-            let text = "";
-
-
-
-            for(
-
-                let i = event.resultIndex;
-
-                i < event.results.length;
-
-                i++
-
-            ){
-
-
-
-                text +=
-
-                event.results[i][0].transcript;
-
-
-
-            }
-
-
-
-            Events.emit(
-
-                "voice:text",
-
-                text
-
-            );
-
-
-        };
-
-
-
-
-
-        this.recognition.onerror =
-
-        error => {
-
-
-            console.error(
-
-                "Voice Error",
-
-                error
-
-            );
-
-
-
-            Events.emit(
-
-                "voice:error",
-
-                error
-
-            );
-
-
-        };
-
-
-
-
-
-        this.recognition.onend = ()=>{
-
-
-            this.state.listening = false;
-
-
-
-            Events.emit(
-
-                "voice:end"
-
-            );
-
-
-        };
-
-
-
-    }
-
-
-
-
-
-    /* =======================================================
-       START LISTENING
-    ======================================================= */
-
-
-    startListening(){
-
-
-        if(!this.recognition){
-
-
-            return;
-
-
-        }
-
-
-
-        this.recognition.start();
-
-
-
-    }
-
-    /* =======================================================
-       STOP LISTENING
-    ======================================================= */
-
-
-    stopListening(){
-
-
-        if(
-
-            this.recognition
-
-        ){
-
-
-            this.recognition.stop();
-
-
-        }
-
-
-    }
-
-
-
-
 /* =======================================================
    TEXT TO SPEECH
 ======================================================= */
@@ -608,19 +368,6 @@ setSettings(options){
 
         });
 
-
-        if(this.recognition){
-
-
-            this.recognition.lang =
-
-
-                this.getRecognitionLanguage();
-
-
-        }
-
-
         this.syncPlayerSettings();
 
 
@@ -664,26 +411,6 @@ setSettings(options){
         );
 
     }
-
-    /* =======================================================
-       APPLY RECOGNITION
-       Pushes the current recognition language into the live
-       SpeechRecognition instance (afe to call when recognition
-       is unsupported or not yet created).
-    ======================================================= */
-
-    applyRecognition() {
-
-        if (!this.recognition) {
-
-            return;
-
-        }
-
-        this.recognition.lang = this.getRecognitionLanguage();
-
-    }
-
 
     /* =======================================================
        STATUS
@@ -907,17 +634,11 @@ console.log(
 
    destroy(){
 
-    this.stopListening();
-
     this.stopSpeaking();
-
-    this.recognition = null;
 
     this.voices = [];
 
     this.queue.clear();
-
-    this.state.listening = false;
 
     this.state.speaking = false;
 

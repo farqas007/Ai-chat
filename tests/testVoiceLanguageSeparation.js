@@ -19,23 +19,6 @@
 
 globalThis.window = globalThis;
 
-const recognitionInstances = [];
-
-globalThis.SpeechRecognition = class {
-    constructor() {
-        this.lang = "";
-        this.continuous = false;
-        this.interimResults = false;
-        this.onstart = null;
-        this.onresult = null;
-        this.onerror = null;
-        this.onend = null;
-        recognitionInstances.push(this);
-    }
-    start() {}
-    stop() {}
-};
-
 globalThis.localStorage = (() => {
     const map = new Map();
     return {
@@ -105,7 +88,6 @@ function assert(name, condition) {
 
 function clearInstances() {
     localStorage.clear();
-    recognitionInstances.length = 0;
 }
 
 function makeVoice(persisted = {}) {
@@ -253,12 +235,15 @@ function testRecognitionNeverClobbered() {
 
     clearInstances();
 
-    // Persist the English style through the voice UI pipeline.
+    // PH06-4: the dormant Voice SpeechRecognition pipeline was removed.
+    // The active recognition language is exposed via
+    // getRecognitionLanguage() and seeded into the live VoiceInput
+    // pipeline by app.js; TTS voice labels never affect it.
     const voice = makeVoice({ language: "english" });
 
     assert(
-        "R3 recognition.lang = en-US for english style",
-        voice.recognition.lang === "en-US"
+        "R3 Voice initializes without a dormant recognition instance",
+        voice.recognition === undefined
     );
 
     assert(
@@ -280,8 +265,8 @@ function testRecognitionNeverClobbered() {
     );
 
     assert(
-        "R3 voice label did NOT overwrite recognition.lang",
-        voice.recognition.lang === "en-US"
+        "R3 voice label did NOT change the recognition language",
+        voice.getRecognitionLanguage() === "en-US"
     );
 
     assert(
@@ -305,8 +290,7 @@ function testSettingsChangedPath() {
 
     assert(
         "R4 default auto resolves to ur-PK",
-        voice.getRecognitionLanguage() === "ur-PK" &&
-        voice.recognition.lang === "ur-PK"
+        voice.getRecognitionLanguage() === "ur-PK"
     );
 
     // Emulate VoiceUI.save() emitting an english style selection.
@@ -317,8 +301,8 @@ function testSettingsChangedPath() {
     });
 
     assert(
-        "R4 save path updates recognition.lang to en-US",
-        voice.recognition.lang === "en-US"
+        "R4 save path keeps the recognition language at en-US",
+        voice.getRecognitionLanguage() === "en-US"
     );
 
     assert(
@@ -333,7 +317,7 @@ function testSettingsChangedPath() {
 
     assert(
         "R4 save path follows to urdu -> ur-PK",
-        voice.recognition.lang === "ur-PK"
+        voice.getRecognitionLanguage() === "ur-PK"
     );
 
 }
@@ -354,15 +338,15 @@ function testSetSettingsLanguage() {
     voice.setSettings({ language: "roman" });
 
     assert(
-        "R5 roman style -> recognition ur-PK",
-        voice.recognition.lang === "ur-PK"
+        "R5 roman style -> recognition language ur-PK",
+        voice.getRecognitionLanguage() === "ur-PK"
     );
 
     voice.setSettings({ language: "english" });
 
     assert(
-        "R5 english style -> recognition en-US",
-        voice.recognition.lang === "en-US"
+        "R5 english style -> recognition language en-US",
+        voice.getRecognitionLanguage() === "en-US"
     );
 
     // Defensive: a label-shaped value written to "language" is
@@ -372,7 +356,7 @@ function testSetSettingsLanguage() {
 
     assert(
         "R5 label-shaped value neutralized into a valid tag",
-        voice.recognition.lang === "ur-PK" &&
+        voice.getRecognitionLanguage() === "ur-PK" &&
         voice.settings.voiceLabel === "Microsoft Zira (en-CA)"
     );
 
