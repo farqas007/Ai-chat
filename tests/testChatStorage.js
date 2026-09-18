@@ -10,8 +10,8 @@
         persisted "current chat" reference when the active chat
         is deleted (no stale id resurrected on reload).
    F15: every storage key comes from the single canonical
-        STORAGE_KEYS source; VoiceSettings/VoiceMemory no longer
-        write under their own private key strings.
+        STORAGE_KEYS source; VoiceSettings no longer writes
+        under its own private key string.
 =========================================================== */
 
 
@@ -58,7 +58,6 @@ import { Chat } from "../js/chat.js";
 import { Sidebar } from "../js/sidebar.js";
 import { Storage, STORAGE_KEYS } from "../js/storage.js";
 import { VoiceSettings } from "../js/voiceSettings.js";
-import { VoiceMemory } from "../js/voiceMemory.js";
 
 
 const passed = [];
@@ -269,8 +268,7 @@ function testCanonicalStorageKeys() {
         STORAGE_KEYS.CHATS === "ai_chat_chats" &&
         STORAGE_KEYS.CURRENT_CHAT === "ai_chat_current_chat" &&
         STORAGE_KEYS.SETTINGS === "ai_chat_settings" &&
-        STORAGE_KEYS.VOICE_SETTINGS === "voice-settings" &&
-        STORAGE_KEYS.VOICE_MEMORY === "ai-chat-voice-memory"
+        STORAGE_KEYS.VOICE_SETTINGS === "voice-settings"
     );
 
     const settings = new VoiceSettings();
@@ -282,24 +280,6 @@ function testCanonicalStorageKeys() {
     assert(
         "F15 VoiceSettings writes under STORAGE_KEYS.VOICE_SETTINGS",
         localStorage.getItem(STORAGE_KEYS.VOICE_SETTINGS) !== null
-    );
-
-    const memory = new VoiceMemory();
-
-    memory.data.rate = 0.8;
-
-    memory.save();
-
-    assert(
-        "F15 VoiceMemory writes under STORAGE_KEYS.VOICE_MEMORY",
-        localStorage.getItem(STORAGE_KEYS.VOICE_MEMORY) !== null
-    );
-
-    const loaded = new VoiceMemory();
-
-    assert(
-        "F15 VoiceMemory reads the canonical key on load",
-        loaded.data.rate === 0.8
     );
 
 }

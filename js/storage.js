@@ -14,9 +14,7 @@ export const STORAGE_KEYS = {
 
     SETTINGS: "ai_chat_settings",
 
-    VOICE_SETTINGS: "voice-settings",
-
-    VOICE_MEMORY: "ai-chat-voice-memory"
+    VOICE_SETTINGS: "voice-settings"
 
 };
 
