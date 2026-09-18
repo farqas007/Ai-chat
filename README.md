@@ -129,6 +129,34 @@ template). All are optional at boot except the provider keys:
 | `NODE_ENV` | `production` or `prod` switches on production auth behavior. | `development` |
 | `ALLOW_NO_AUTH` | `true` enables the local-development no-auth mode. See [Authentication](#authentication). | _unset_ |
 | `CORS_ORIGIN` | Comma-separated allowlist of browser origins allowed to call the API cross-origin. Empty = same-origin only. | _unset_ (same-origin) |
+| `TRUST_PROXY` | Reverse-proxy / load-balancer awareness for correct client-IP rate limiting. Off by default (spoofed `X-Forwarded-For` from direct clients is ignored). Set to `1`, `loopback`, or a proxy subnet allowlist (e.g. `10.0.0.0/8,172.16.0.0/12`) when deployed behind a trusted TLS-terminating reverse proxy. See [Rate limiting & reverse proxies](#rate-limiting--reverse-proxies). | `false` (never trust headers) |
+
+## Rate limiting & reverse proxies
+
+The server rate-limits API endpoints in memory, keyed by `req.ip`. By
+default Express does **not** trust proxy headers, so `req.ip` is the
+direct TCP peer — which is the proxy's address when the app runs behind
+a reverse proxy or load balancer. Without further configuration every
+user behind that proxy would share one rate-limit bucket and the
+limit would be ineffective/globally shared.
+
+Fix (PH-04): explicitly set `TRUST_PROXY` to the trusted proxy hop
+count or subnet allowlist when deploying behind a trusted
+TLS-terminating reverse proxy/load balancer:
+
+```bash
+# single reverse proxy in front of the app
+TRUST_PROXY=1
+
+# or a subnet allowlist of trusted proxy addresses
+TRUST_PROXY=10.0.0.0/8,172.16.0.0/12
+```
+
+`TRUST_PROXY` is **never enabled implicitly** — the default keeps
+spoofed `X-Forwarded-For` headers from direct/untrusted clients
+ignored, so rate limiting always keys on the real connection.
+`TRUST_PROXY=true` (trust all proxies) is supported but not
+recommended; prefer the hop count or the allowlist.
 
 ## Authentication
 

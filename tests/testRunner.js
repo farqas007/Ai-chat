@@ -72,6 +72,7 @@ const REAL_TESTS = [
     "tests/testRuntimePaths.js",
     "tests/testServerConfig.js",
     "tests/testServerRouteSecurity.js",
+    "tests/testServerTrustProxy.js",
     "tests/testSessionManager.js",
     "tests/testSettings.js",
     "tests/testSessionAuth.js",

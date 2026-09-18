@@ -42,11 +42,21 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
-// PORT from the environment (default 3000, "0" allowed for ephemeral
-// binds) and HOST defaulting to 0.0.0.0 so externally reachable
-// hosting platforms work without extra flags.
-const { port: PORT, host: HOST, allowedOrigins: ALLOWED_ORIGINS } =
+// PH-04 (reverse-proxy / rate-limit handling): off by default so
+// X-Forwarded-* headers from direct/untrusted clients are ignored
+// and req.ip (the IP rate limiter's key) stays the direct socket
+// peer. Only when the operator explicitly configures TRUST_PROXY
+// does Express resolve req.ip from the forwarded headers, keeping
+// IP-based rate limiting correct behind a TLS-terminating reverse
+// proxy / load balancer. Never enabled implicitly.
+const { port: PORT, host: HOST, allowedOrigins: ALLOWED_ORIGINS, trustProxy: TRUST_PROXY } =
     resolveServerConfig(process.env);
+
+if (TRUST_PROXY !== false) {
+
+    app.set("trust proxy", TRUST_PROXY);
+
+}
 
 const codex = new CodeAgent();
 
@@ -95,7 +105,9 @@ const SESSION_COOKIE_OPTIONS = {
 // - Non-production plain-HTTP LAN/development deployments may set
 //   the HttpOnly, SameSite=Strict cookie without Secure, so login
 //   works where the server intentionally serves plain HTTP.
-//   (X-Forwarded-Proto is intentionally NOT trusted here.)
+//   (X-Forwarded-Proto is only reflected via Express' req.secure when
+//   an explicit trusted proxy is configured with TRUST_PROXY - it is
+//   never trusted unconditionally.)
 function sessionCookieSecure(req) {
     if (AUTH_POLICY.isProduction) {
         return true;
