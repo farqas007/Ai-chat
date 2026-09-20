@@ -63,7 +63,7 @@ export function replaceCode(file, oldCode, newCode, root = defaultRoot) {
     if (content.includes(oldCode)) {
         writeFile(
             file,
-            content.replace(oldCode, newCode),
+            content.replaceAll(oldCode, newCode),
             root
         );
 

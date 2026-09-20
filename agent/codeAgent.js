@@ -303,18 +303,6 @@ this.taskGraph.complete(step);
 
     }
 
-    const context = this.buildProjectContext();
-
-console.log(
-    "Project Files:",
-    context.project.totalFiles
-);
-
-console.log(
-    "Dependencies:",
-    Object.keys(context.dependencies).length
-);
-
 }
 
     // Returns the result of a dependency step by type (e.g. the "find"

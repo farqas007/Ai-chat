@@ -119,6 +119,24 @@ try {
     );
 
 
+    /* Multi-occurrence: replaceCode must replace all matching instances. */
+
+    const multiFile = path.join(root, "multi.txt");
+    writeFile(multiFile, "foo bar foo baz foo", root);
+
+    assert.strictEqual(
+        replaceCode(multiFile, "foo", "qux", root),
+        "Code replaced",
+        "replaceCode succeeds with multiple occurrences"
+    );
+
+    assert.strictEqual(
+        readFile(multiFile, root),
+        "qux bar qux baz qux",
+        "replaceCode replaces every occurrence"
+    );
+
+
     console.log("PASS: codeEditor containment + missing-file semantics");
 
 }

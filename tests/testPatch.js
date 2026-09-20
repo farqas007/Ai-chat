@@ -97,6 +97,36 @@ try {
     );
 
 
+    /* Multi-occurrence: all instances of oldCode must be replaced. */
+
+    fs.writeFileSync(
+        path.join(tmpDir, "multi.txt"),
+        "aaa bbb aaa ccc aaa",
+        "utf8"
+    );
+
+    const multi = agent.execute({
+        action: "edit",
+        file: "multi.txt",
+        oldCode: "aaa",
+        newCode: "zzz"
+    });
+
+    assert.strictEqual(
+        multi.success,
+        true,
+        "patch must succeed with multiple occurrences"
+    );
+
+    const multiContent = agent.read("multi.txt");
+
+    assert.strictEqual(
+        multiContent,
+        "zzz bbb zzz ccc zzz",
+        "replaceAll must replace every occurrence"
+    );
+
+
     console.log("PASS: patch replaces existing old text with new text");
     console.log("PASS: missing old text fails without modifying the file");
 

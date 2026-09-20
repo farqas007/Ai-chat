@@ -37,7 +37,7 @@ export class PatchEngine {
                 };
             }
 
-            const updated = content.replace(
+            const updated = content.replaceAll(
                 oldCode,
                 newCode
             );
