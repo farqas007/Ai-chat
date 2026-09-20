@@ -19,16 +19,23 @@ const MAX_BUCKETS = 50000;
 const ERROR_MESSAGE = "Too many requests. Please try again shortly.";
 
 function clientIp(headers = {}) {
-    if (typeof headers.get === "function") {
-        const direct = headers.get("cf-connecting-ip");
-        if (direct) {
-            return direct;
-        }
-        const forwarded = headers.get("x-forwarded-for") || "";
-        const first = forwarded.split(",")[0].trim();
-        if (first) {
-            return first;
-        }
+    /* Support both the Web API Headers instance (native Worker path:
+       request.headers has .get()) and the plain IncomingHttpHeaders
+       object that Express delivers in req.headers (no .get()). Without
+       the plain-object branch, Express-middleware rate limiters key
+       every request as "unknown" and all users share one bucket. */
+    const get = typeof headers.get === "function"
+        ? name => headers.get(name)
+        : name => headers[name] || headers[name.toLowerCase()] || null;
+
+    const direct = get("cf-connecting-ip");
+    if (direct) {
+        return direct;
+    }
+    const forwarded = get("x-forwarded-for") || "";
+    const first = String(forwarded).split(",")[0].trim();
+    if (first) {
+        return first;
     }
     return "unknown";
 }

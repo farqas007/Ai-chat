@@ -280,4 +280,253 @@ const repoRoot = path.join(__dirname, "..");
 }
 
 
+/* 7. clientIp resolves plain-object headers (Express req.headers path).
+
+   Before the fix, clientIp() only checked headers.get (Web API Headers),
+   so Express middleware always returned "unknown" and all users shared
+   one rate-limit bucket. This verifies the fix handles plain objects. */
+
+{
+    const limiter = createRateLimiter({ windowMs: 60 * 1000, max: 3 });
+
+    /* Express-style plain object with cf-connecting-ip */
+    const expressReqA = {
+        path: "/api/login",
+        headers: { "cf-connecting-ip": "192.168.1.100" }
+    };
+
+    const expressReqB = {
+        path: "/api/login",
+        headers: { "cf-connecting-ip": "192.168.1.200" }
+    };
+
+    assert.strictEqual(limiter.middleware(expressReqA, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {}), undefined, "first plain-object request allowed");
+
+    assert.strictEqual(limiter.middleware(expressReqA, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {}), undefined, "second plain-object request allowed");
+
+    assert.strictEqual(limiter.middleware(expressReqA, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {}), undefined, "third plain-object request allowed");
+
+    let limited = false;
+    limiter.middleware(expressReqA, {
+        setHeader() {},
+        status(c) { limited = c === 429; return this; },
+        json() {}
+    }, () => {});
+    assert.strictEqual(limited, true, "4th request from same IP is blocked (plain-object path)");
+
+    /* Different IP via plain-object gets its own bucket. */
+    let nextCalled = false;
+    limiter.middleware(expressReqB, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => { nextCalled = true; });
+    assert.strictEqual(nextCalled, true, "different plain-object IP gets its own bucket");
+}
+
+
+/* 7b. clientIp falls back to x-forwarded-for when cf-connecting-ip absent. */
+
+{
+    const limiter = createRateLimiter({ windowMs: 60 * 1000, max: 2 });
+
+    const req1 = {
+        path: "/api/login",
+        headers: { "x-forwarded-for": "10.0.0.50, 10.0.0.51" }
+    };
+
+    let nexted = false;
+    limiter.middleware(req1, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => { nexted = true; });
+    assert.strictEqual(nexted, true, "x-forwarded-for first entry used (plain object)");
+
+    nexted = false;
+    limiter.middleware(req1, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => { nexted = true; });
+    assert.strictEqual(nexted, true, "second request still within limit");
+
+    let limited = false;
+    limiter.middleware(req1, {
+        setHeader() {},
+        status(c) { limited = c === 429; return this; },
+        json() {}
+    }, () => {});
+    assert.strictEqual(limited, true, "third request exceeds limit (x-forwarded-for path)");
+}
+
+
+/* 7c. Spoofed x-forwarded-for is ignored when cf-connecting-ip is present. */
+
+{
+    const limiter = createRateLimiter({ windowMs: 60 * 1000, max: 2 });
+
+    /* The real IP is 1.2.3.4; the spoofed forwarded-for is 9.9.9.9. */
+    const realReq = {
+        path: "/api/login",
+        headers: {
+            "cf-connecting-ip": "1.2.3.4",
+            "x-forwarded-for": "9.9.9.9"
+        }
+    };
+
+    limiter.middleware(realReq, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {});
+
+    limiter.middleware(realReq, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {});
+
+    /* Third request from same real IP is blocked. */
+    let limited = false;
+    limiter.middleware(realReq, {
+        setHeader() {},
+        status(c) { limited = c === 429; return this; },
+        json() {}
+    }, () => {});
+    assert.strictEqual(limited, true, "spoofed x-forwarded-for does not bypass limiter");
+
+    /* Request with only the spoofed IP in x-forwarded-for (no cf-connecting-ip)
+       would be keyed as the spoofed IP — this is correct because without
+       cf-connecting-ip we have no better signal. */
+    const spoofOnly = {
+        path: "/api/login",
+        headers: { "x-forwarded-for": "9.9.9.9" }
+    };
+    let nexted = false;
+    limiter.middleware(spoofOnly, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => { nexted = true; });
+    assert.strictEqual(nexted, true, "spoof-only IP gets its own fresh bucket");
+}
+
+
+/* 7d. Login limiter: normal login allowed, repeated attempts hit limit,
+       and window reset restores access. */
+
+{
+    const loginLimiter = createRateLimiter({ windowMs: 80, max: 3 });
+
+    function tryLogin(ip) {
+        let result = "next";
+        loginLimiter.middleware(
+            { path: "/api/login", headers: { "cf-connecting-ip": ip } },
+            {
+                setHeader() {},
+                status(code) {
+                    if (code === 429) { result = "429"; }
+                    return this;
+                },
+                json() {}
+            },
+            () => { result = "next"; }
+        );
+        return result;
+    }
+
+    assert.strictEqual(tryLogin("1.1.1.1"), "next", "login attempt 1 allowed");
+    assert.strictEqual(tryLogin("1.1.1.1"), "next", "login attempt 2 allowed");
+    assert.strictEqual(tryLogin("1.1.1.1"), "next", "login attempt 3 allowed");
+    assert.strictEqual(tryLogin("1.1.1.1"), "429", "login attempt 4 blocked");
+
+    /* Different user is unaffected. */
+    assert.strictEqual(tryLogin("2.2.2.2"), "next", "different user not blocked");
+
+    /* After window expires, original user can login again. */
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.strictEqual(tryLogin("1.1.1.1"), "next", "login allowed after window reset");
+}
+
+
+/* 7e. No HTTP method in rate-limit key: same IP + same path = same bucket. */
+
+{
+    const limiter = createRateLimiter({ windowMs: 60 * 1000, max: 1 });
+
+    const getReq = {
+        path: "/api/session",
+        headers: { "cf-connecting-ip": "5.5.5.5" }
+    };
+
+    let nexted = false;
+    limiter.middleware(getReq, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => { nexted = true; });
+    assert.strictEqual(nexted, true, "first request to path allowed");
+
+    /* Second request to same path + same IP is blocked. */
+    let limited = false;
+    limiter.middleware(getReq, {
+        setHeader() {},
+        status(c) { limited = c === 429; return this; },
+        json() {}
+    }, () => {});
+    assert.strictEqual(limited, true, "same-path same-IP second request blocked");
+}
+
+
+/* 7f. clientIp returns "unknown" when no IP headers present (both paths). */
+
+{
+    const limiter = createRateLimiter({ windowMs: 60 * 1000, max: 1 });
+
+    /* Plain object, no IP headers. */
+    const plainA = { path: "/api/login", headers: {} };
+    const plainB = { path: "/api/login", headers: {} };
+
+    limiter.middleware(plainA, {
+        setHeader() {},
+        status() { return this; },
+        json() {}
+    }, () => {});
+
+    /* Second plain object shares the "unknown" bucket. */
+    let limited = false;
+    limiter.middleware(plainB, {
+        setHeader() {},
+        status(c) { limited = c === 429; return this; },
+        json() {}
+    }, () => {});
+    assert.strictEqual(limited, true, "unknown-bucket collision for plain objects");
+
+    /* Native Request without IP headers also uses "unknown" via allowRequest. */
+    const limiter2 = createRateLimiter({ windowMs: 60 * 1000, max: 1 });
+    const nativeA = new Request("https://x.test/api/login", { method: "POST" });
+    const nativeB = new Request("https://x.test/api/login", { method: "POST" });
+
+    assert.strictEqual(limiter2.allowRequest(nativeA, "/api/login"), true);
+    assert.strictEqual(
+        limiter2.allowRequest(nativeB, "/api/login"),
+        false,
+        "unknown-bucket collision for native requests via allowRequest"
+    );
+}
+
+
 console.log("PASS: Worker security primitives (rate limit + body cap + revocation wiring)");
