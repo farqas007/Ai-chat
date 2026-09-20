@@ -133,6 +133,36 @@ const repoRoot = path.join(__dirname, "..");
 }
 
 
+/* 3b. Selective eviction: stale entries are removed but active buckets survive. */
+
+{
+    const limiter = createRateLimiter({ windowMs: 50, max: 2 });
+
+    const active = new Request("https://x.test/api/chat", {
+        method: "POST",
+        headers: { "cf-connecting-ip": "10.0.0.100" }
+    });
+
+    const stale = new Request("https://x.test/api/chat", {
+        method: "POST",
+        headers: { "cf-connecting-ip": "10.0.0.200" }
+    });
+
+    limiter.allowRequest(stale, "/api/chat");
+    limiter.allowRequest(stale, "/api/chat");
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    limiter.allowRequest(active, "/api/chat");
+
+    assert.strictEqual(
+        limiter.allowRequest(active, "/api/chat"),
+        true,
+        "active client bucket survives after stale entries expire"
+    );
+}
+
+
 /* 4. createStreamChatResponse: oversized body -> 413, before any auth. */
 
 {

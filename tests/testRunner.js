@@ -48,6 +48,7 @@ const REAL_TESTS = [
     "tests/testCodeBlockEmpty.js",
     "tests/testCodeExtractor.js",
     "tests/testCodexHandler.js",
+    "tests/testCodexPipeline.js",
     "tests/testConversation.js",
     "tests/testCreate.js",
     "tests/testDependencyAnalyzer.js",

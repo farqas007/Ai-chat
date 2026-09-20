@@ -258,6 +258,68 @@ bindEvents() {
         );
 
 
+        this.elements.chatList.addEventListener(
+
+            "keydown",
+
+            event => {
+
+
+                if (
+
+                    event.key !== "Enter" &&
+
+                    event.key !== " "
+
+                ) {
+
+                    return;
+
+                }
+
+
+                const item =
+
+                    event.target.closest(
+
+                        ".chat-item"
+
+                    );
+
+
+                if (!item) {
+
+                    return;
+
+                }
+
+
+                event.preventDefault();
+
+
+                const chatId =
+
+                    item.dataset.chatId;
+
+                this.state.activeChatId =
+
+                    chatId;
+
+
+                Events.emit(
+
+                    "chat:selected",
+
+                    chatId
+
+                );
+
+
+            }
+
+        );
+
+
     }
 
 
@@ -517,6 +579,10 @@ renderChatItem(chat) {
 
         "chat-item";
 
+    item.tabIndex = 0;
+
+    item.setAttribute("role", "button");
+
 
 
     item.dataset.chatId =
@@ -645,21 +711,17 @@ render(chats = this.state.chats) {
                         this.renderChatItem(chat);
 
 
-
                     this.elements.chatList.appendChild(
                         item
                     );
-
 
                 }
 
             );
 
-
         }
 
     );
-
 
 }
 /* =======================================================

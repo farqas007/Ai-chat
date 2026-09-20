@@ -1231,6 +1231,14 @@ section h2{
 
 }
 
+.contact-form input:focus-visible,
+.contact-form textarea:focus-visible{
+
+    outline:2px solid #60a5fa;
+    outline-offset:2px;
+
+}
+
 .contact-form input::placeholder,
 .contact-form textarea::placeholder{
 

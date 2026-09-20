@@ -171,7 +171,25 @@ function rateLimit({ windowMs, max }) {
         const windowStart = now - windowMs;
 
         if (rateBuckets.size > 50000) {
-            rateBuckets.clear();
+            const cutoff = Date.now() - windowMs * 2;
+            for (const [k, v] of rateBuckets) {
+                if (v.length === 0 || v[v.length - 1] < cutoff) {
+                    rateBuckets.delete(k);
+                }
+            }
+        }
+
+        if (rateBuckets.size > 50000) {
+            const entries = [...rateBuckets.entries()]
+                .sort((a, b) => {
+                    const aLast = a[1].length ? a[1][a[1].length - 1] : 0;
+                    const bLast = b[1].length ? b[1][b[1].length - 1] : 0;
+                    return aLast - bLast;
+                });
+            const toRemove = entries.slice(0, entries.length - 50000 + 1000);
+            for (const [k] of toRemove) {
+                rateBuckets.delete(k);
+            }
         }
 
         const recent = (rateBuckets.get(key) || [])

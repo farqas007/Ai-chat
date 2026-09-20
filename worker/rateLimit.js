@@ -42,7 +42,25 @@ export function createRateLimiter({
 
     function isLimited(key) {
         if (buckets.size > MAX_BUCKETS) {
-            buckets.clear();
+            const cutoff = Date.now() - windowMs * 2;
+            for (const [k, v] of buckets) {
+                if (v.length === 0 || v[v.length - 1] < cutoff) {
+                    buckets.delete(k);
+                }
+            }
+        }
+
+        if (buckets.size > MAX_BUCKETS) {
+            const entries = [...buckets.entries()]
+                .sort((a, b) => {
+                    const aLast = a[1].length ? a[1][a[1].length - 1] : 0;
+                    const bLast = b[1].length ? b[1][b[1].length - 1] : 0;
+                    return aLast - bLast;
+                });
+            const toRemove = entries.slice(0, entries.length - MAX_BUCKETS + 1000);
+            for (const [k] of toRemove) {
+                buckets.delete(k);
+            }
         }
 
         const now = Date.now();
