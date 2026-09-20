@@ -19,6 +19,32 @@ import {
 const DEFAULT_UPSTREAM_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /* ===========================================================
+   HISTORY SANITIZATION
+   Client-supplied history is untrusted. We strip any entry that
+   is not a plain {role, content} object with a whitelisted role
+   to prevent system-prompt injection via crafted history arrays.
+   =========================================================== */
+
+const ALLOWED_HISTORY_ROLES = new Set(["user", "assistant"]);
+const MAX_HISTORY_ENTRIES = 50;
+
+export function sanitizeHistory(raw) {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+    return raw
+        .filter(entry =>
+            entry !== null &&
+            typeof entry === "object" &&
+            !Array.isArray(entry) &&
+            ALLOWED_HISTORY_ROLES.has(entry.role) &&
+            typeof entry.content === "string" &&
+            entry.content.trim() !== ""
+        )
+        .slice(-MAX_HISTORY_ENTRIES);
+}
+
+/* ===========================================================
    SSE PROTOCOL FORMATTER
    =========================================================== */
 
@@ -260,7 +286,7 @@ export async function handleStreamChat(req, res, options = {}) {
                 model,
                 messages: [
                     { role: "system", content: systemPrompt },
-                    ...history,
+                    ...sanitizeHistory(history),
                     { role: "user", content: message }
                 ],
                 temperature,

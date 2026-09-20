@@ -30,7 +30,8 @@
 import {
     createSSEParser,
     extractDeltaContent,
-    formatSSE
+    formatSSE,
+    sanitizeHistory
 } from "../server/streamChat.js";
 
 import {
@@ -329,7 +330,7 @@ export function createChatSseStream(config) {
                             model,
                             messages: [
                                 { role: "system", content: systemPrompt },
-                                ...history,
+                                ...sanitizeHistory(history),
                                 { role: "user", content: message }
                             ],
                             temperature,
