@@ -191,7 +191,7 @@ function runConfigChecks() {
     const cases = [
         ["no TRUST_PROXY -> false", {}, false],
         ["TRUST_PROXY=false -> false", { TRUST_PROXY: "false" }, false],
-        ["TRUST_PROXY=true -> true", { TRUST_PROXY: "true" }, true],
+        ["TRUST_PROXY=true -> false (arbitrary trust disabled)", { TRUST_PROXY: "true" }, false],
         ["TRUST_PROXY=2 -> hop count 2", { TRUST_PROXY: "2" }, 2],
         ["TRUST_PROXY=loopback -> loopback", { TRUST_PROXY: "loopback" }, "loopback"],
         [

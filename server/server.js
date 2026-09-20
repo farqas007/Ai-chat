@@ -129,7 +129,7 @@ app.use((req, res, next) => {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "default-src 'self'; script-src 'self'; style-src 'self'; " +
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
@@ -327,7 +327,9 @@ app.post("/api/login",
     });
 
 // Invalidate the browser session and clear the cookie.
-app.post("/api/logout", (req, res) => {
+app.post("/api/logout",
+    rateLimit({ windowMs: 60 * 1000, max: 10 }),
+    (req, res) => {
 
     const sessionId = getCookieValue(
         req.headers.cookie,

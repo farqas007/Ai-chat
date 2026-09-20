@@ -609,6 +609,32 @@ async streamMessage(message, history = [], callbacks = {}) {
 
     Events.emit("stream:start");
 
+    /* Client-side safety timeout: if the stream stalls for longer
+       than this (no data, no done, no error), abort the controller
+       so the UI is never permanently stuck in a sending state.
+       The server's own idle timer is 60 s; this is deliberately
+       longer to avoid false positives on slow connections. */
+    const STREAM_SAFETY_TIMEOUT_MS = 120 * 1000;
+    let safetyTimer = null;
+
+    const armSafety = () => {
+        if (safetyTimer) {
+            clearTimeout(safetyTimer);
+        }
+        safetyTimer = setTimeout(() => {
+            if (this.controller && !this.controller.signal.aborted) {
+                this.controller.abort();
+            }
+        }, STREAM_SAFETY_TIMEOUT_MS);
+    };
+
+    const clearSafety = () => {
+        if (safetyTimer) {
+            clearTimeout(safetyTimer);
+            safetyTimer = null;
+        }
+    };
+
     const failStream = error => {
 
         if (onError) {
@@ -707,6 +733,8 @@ async streamMessage(message, history = [], callbacks = {}) {
 
         let streamError = null;
 
+        armSafety();
+
         const applyEvents = events => {
 
             for (const event of events) {
@@ -777,6 +805,8 @@ async streamMessage(message, history = [], callbacks = {}) {
                 break;
             }
 
+            armSafety();
+
         }
 
         /* Drain a trailing event that arrived without its final
@@ -789,14 +819,17 @@ async streamMessage(message, history = [], callbacks = {}) {
         }
 
         if (streamError) {
+            clearSafety();
             failStream(streamError);
             return content;
         }
 
         if (signal && signal.aborted) {
+            clearSafety();
             return content || null;
         }
 
+        clearSafety();
         finishStream(content);
 
         return content;
@@ -804,6 +837,8 @@ async streamMessage(message, history = [], callbacks = {}) {
     }
 
     catch (error) {
+
+        clearSafety();
 
         if (isAbortError(error, signal)) {
             return content || null;
@@ -816,6 +851,8 @@ async streamMessage(message, history = [], callbacks = {}) {
     }
 
     finally {
+
+        clearSafety();
 
         this.state.loading = false;
 

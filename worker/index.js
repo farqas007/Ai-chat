@@ -71,6 +71,18 @@ const SESSION_SECRET = typeof env.SESSION_SECRET === "string"
     ? env.SESSION_SECRET
     : "";
 
+/* Fail safely when SESSION_SECRET is empty in production. Cookie
+   sessions silently cannot work without a secret, so login would
+   appear to succeed but the session cookie could never be verified.
+   Logging in dev-no-auth mode is fine without a secret (sessions
+   are bypassed entirely). */
+if (!DEV_NO_AUTH && !SESSION_SECRET) {
+    console.error(
+        "SEC: SESSION_SECRET is not configured. " +
+        "Browser session authentication is unavailable until a secret is set."
+    );
+}
+
 const { allowedOrigins: ALLOWED_ORIGINS } = resolveServerConfig(env);
 
 const REPLICATE_API = "https://api.replicate.com/v1";
@@ -163,7 +175,7 @@ app.use((req, res, next) => {
     res.setHeader("Referrer-Policy", "no-referrer");
     res.setHeader(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "default-src 'self'; script-src 'self'; style-src 'self'; " +
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
@@ -212,6 +224,8 @@ const sessionLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
 const loginLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
 const chatLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20 });
+
+const logoutLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
 const imageCreateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
@@ -295,7 +309,7 @@ app.post("/api/login", loginLimiter.middleware, (req, res) => {
 
 });
 
-app.post("/api/logout", (req, res) => {
+app.post("/api/logout", logoutLimiter.middleware, (req, res) => {
 
     const sessionId = getCookieValue(
         req.headers.cookie,

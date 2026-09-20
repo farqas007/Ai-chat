@@ -85,7 +85,7 @@ function resolveTrustProxy(raw) {
     }
 
     if (value === "true") {
-        return true;
+        return false;
     }
 
     if (value === "loopback") {

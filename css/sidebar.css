@@ -542,6 +542,12 @@
 
 }
 
+.chat-item:focus-within .chat-actions{
+
+    opacity:1;
+
+}
+
 .chat-actions button{
 
     width:26px;

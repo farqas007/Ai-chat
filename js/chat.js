@@ -1322,6 +1322,11 @@ exportChat(chatId = null) {
 ======================================================= */
 importChat(data) {
 
+    const MAX_IMPORTED_MESSAGES = 1000;
+
+    const MAX_MESSAGE_CONTENT_LENGTH = 50000;
+
+    const MAX_TOTAL_CONTENT_BYTES = 5 * 1024 * 1024;
 
     try {
 
@@ -1403,10 +1408,15 @@ importChat(data) {
 
             chat.messages = chat.messages
 
-                .filter(message => message && typeof message === "object");
+                .filter(message => message && typeof message === "object")
 
 
-            chat.messages.forEach(message => {
+                .slice(-MAX_IMPORTED_MESSAGES);
+
+
+            let totalContentBytes = 0;
+
+            for (const message of chat.messages) {
 
                 if (typeof message.content !== "string") {
 
@@ -1414,7 +1424,24 @@ importChat(data) {
 
                 }
 
-            });
+                totalContentBytes += message.content.length * 2;
+
+                if (totalContentBytes > MAX_TOTAL_CONTENT_BYTES) {
+
+                    throw new Error("Imported chat content exceeds maximum size");
+
+                }
+
+                if (message.content.length > MAX_MESSAGE_CONTENT_LENGTH) {
+
+                    message.content = message.content.slice(
+                        0,
+                        MAX_MESSAGE_CONTENT_LENGTH
+                    );
+
+                }
+
+            }
 
         }
 

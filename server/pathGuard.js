@@ -5,6 +5,7 @@
    =========================================================== */
 
 import path from "path";
+import fs from "fs";
 
 // Secret/config file extensions that must never be read, edited or served.
 // `.env` is matched by prefix rule below (segment name), these cover
@@ -74,6 +75,8 @@ export function isSensitivePath(filePath) {
 // only when it stays inside `root`. Returns null for escapes, absolute
 // paths outside the root, NUL bytes and empty input. Shared by every
 // write primitive so a single containment gate protects all callers.
+// Uses fs.realpathSync on the resolved path (when it exists) to prevent
+// symlink-based path traversal.
 export function resolveInside(root, file) {
     if (
         typeof root !== "string" ||
@@ -89,7 +92,29 @@ export function resolveInside(root, file) {
 
         const fullPath = path.resolve(base, file);
 
-        const relative = path.relative(base, fullPath);
+        // Canonicalize both root and target. If the target exists on
+        // disk, realpathSync resolves symlinks so a symlink pointing
+        // outside the root is caught. If it does not yet exist (write
+        // target), the resolved path without symlink following is used
+        // — the containment check against the canonical base still
+        // prevents escape via .. segments.
+        let canonicalRoot;
+
+        try {
+            canonicalRoot = fs.realpathSync(base);
+        } catch {
+            canonicalRoot = base;
+        }
+
+        let canonicalPath;
+
+        try {
+            canonicalPath = fs.realpathSync(fullPath);
+        } catch {
+            canonicalPath = fullPath;
+        }
+
+        const relative = path.relative(canonicalRoot, canonicalPath);
 
         if (
             relative === "" ||

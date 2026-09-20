@@ -74,7 +74,7 @@ export const API_SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Content-Security-Policy":
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "default-src 'self'; script-src 'self'; style-src 'self'; " +
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 };

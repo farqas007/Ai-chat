@@ -1,19 +1,31 @@
 import fs from "fs";
 import path from "path";
 
+const DEFAULT_MAX_DEPTH = 20;
+
 export class WorkspaceScanner {
 
-    scan(root = ".") {
+    scan(root = ".", maxDepth) {
 
         const result = [];
 
-        this.walk(root, result);
+        const depth = typeof maxDepth === "number"
+            ? maxDepth
+            : DEFAULT_MAX_DEPTH;
+
+        this.walk(root, result, 0, depth);
 
         return result;
 
     }
 
-    walk(dir, result) {
+    walk(dir, result, currentDepth, maxDepth) {
+
+        if (currentDepth > maxDepth) {
+
+            return;
+
+        }
 
         let items;
 
@@ -63,7 +75,7 @@ export class WorkspaceScanner {
                     path: full
                 });
 
-                this.walk(full, result);
+                this.walk(full, result, currentDepth + 1, maxDepth);
 
             } else {
 
