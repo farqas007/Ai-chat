@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { resolveInside } from "../server/pathGuard.js";
+import { resolveInside, isSensitivePath } from "../server/pathGuard.js";
 
 const defaultRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -12,9 +12,14 @@ const defaultRoot = path.resolve(
 // root). Paths that resolve outside the root are rejected instead of being
 // written or read blindly.
 function guardedPath(file, root) {
-    const fullPath = resolveInside(root || defaultRoot, file);
+    const resolvedRoot = root || defaultRoot;
+    const fullPath = resolveInside(resolvedRoot, file);
     if (!fullPath) {
         throw new Error("Invalid file path");
+    }
+    const rel = path.relative(resolvedRoot, fullPath);
+    if (isSensitivePath(rel)) {
+        throw new Error("Sensitive path");
     }
     return fullPath;
 }

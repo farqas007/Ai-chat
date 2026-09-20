@@ -198,14 +198,15 @@ scoreFile(file, keywords = []) {
 
 buildProjectContext(task, project = {}) {
 
-    const graph = this.dependencyGraph.build(
-        project.files || []
+    const rawFiles = project.files || [];
+
+    const files = rawFiles.map(f =>
+        typeof f === "string" ? { path: f, content: "" } : f
     );
 
-    const ranked = this.fileRanker.rank(
-        task,
-        project.files || []
-    );
+    const graph = this.dependencyGraph.build(files);
+
+    const ranked = this.fileRanker.rank(task, files);
 
     const relevant = ranked.slice(0, 10);
 

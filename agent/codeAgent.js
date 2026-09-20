@@ -92,6 +92,24 @@ console.log("Code Agent Ready");
     // Task Graph banao
     const graph = this.taskGraph.build(plan);
 
+    if (this.taskGraph.detectCycle(graph)) {
+
+        console.error("Task graph contains a cycle — aborting");
+
+        for (const step of graph) {
+
+            if (step.status === "pending") {
+
+                this.taskGraph.fail(step);
+
+            }
+
+        }
+
+        return graph;
+
+    }
+
     // Graph execute karo
   while (true) {
 

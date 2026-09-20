@@ -86,6 +86,39 @@ try {
     );
 
 
+    /* SEC-04: sensitive paths are blocked by codeEditor. */
+
+    assert.strictEqual(
+        readFile(".env", root),
+        null,
+        "readFile returns null for .env"
+    );
+
+    assert.throws(
+        () => writeFile(".env", "SECRET=x", root),
+        /Invalid file path/,
+        "writeFile rejects .env"
+    );
+
+    assert.strictEqual(
+        readFile("server/server.js", root),
+        null,
+        "readFile returns null for server/ path"
+    );
+
+    assert.throws(
+        () => writeFile("keys/ssh.key", "x", root),
+        /Invalid file path/,
+        "writeFile rejects sensitive .key file"
+    );
+
+    assert.strictEqual(
+        replaceCode(".env", "old", "new", root),
+        "File not found",
+        "replaceCode returns File not found for .env"
+    );
+
+
     console.log("PASS: codeEditor containment + missing-file semantics");
 
 }

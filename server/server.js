@@ -520,7 +520,7 @@ app.get("/file",
             });
         }
 
-        const content = codex.files.read(filePath);
+        const content = codex.files.read(normalized);
 
         if (content === null || content === undefined) {
             return res.status(404).json({
@@ -529,7 +529,7 @@ app.get("/file",
             });
         }
 
-        res.json({ success: true, path: filePath, content });
+        res.json({ success: true, path: normalized, content });
 
     } catch (error) {
         console.error("File Error:", error.message);
@@ -569,7 +569,7 @@ app.post("/codex/analyze-file",
             });
         }
 
-        const analysis = codex.analyzeFile(file);
+        const analysis = codex.analyzeFile(normalized);
 
         if (!analysis) {
             return res.status(404).json({

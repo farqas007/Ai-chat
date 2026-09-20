@@ -93,4 +93,53 @@ assert.ok(
 );
 
 
+/* SEC-04: sensitive paths are blocked by fileManager. */
+
+try {
+    await readFile(".env");
+    assert.fail("readFile must throw for .env");
+} catch (e) {
+    assert.ok(
+        e.message.includes("Sensitive path"),
+        "readFile throws Sensitive path for .env"
+    );
+}
+
+try {
+    await readFile("server/server.js");
+    assert.fail("readFile must throw for server/ path");
+} catch (e) {
+    assert.ok(
+        e.message.includes("Sensitive path"),
+        "readFile throws Sensitive path for server/ path"
+    );
+}
+
+try {
+    await readFile("keys/ssh.key");
+    assert.fail("readFile must throw for sensitive .key file");
+} catch (e) {
+    assert.ok(
+        e.message.includes("Sensitive path"),
+        "readFile throws Sensitive path for .key file"
+    );
+}
+
+try {
+    await readFile("memory.json");
+    assert.fail("readFile must throw for memory.json");
+} catch (e) {
+    assert.ok(
+        e.message.includes("Sensitive path"),
+        "readFile throws Sensitive path for memory.json"
+    );
+}
+
+const safeRead = await readFile("package.json", repoRoot);
+assert.ok(
+    typeof safeRead === "string" && safeRead.length > 0,
+    "readFile succeeds for allowed project file"
+);
+
+
 console.log("PASS: filesystem scan + read resolve against the repository root");
