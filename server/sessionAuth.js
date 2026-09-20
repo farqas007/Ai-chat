@@ -31,13 +31,25 @@ export function secureEquals(a, b) {
 
     const bufferB = Buffer.from(String(b));
 
-    if (bufferA.length !== bufferB.length) {
+    const maxLen = Math.max(bufferA.length, bufferB.length);
 
-        return false;
+    if (maxLen === 0) {
+
+        return bufferA.length === bufferB.length;
 
     }
 
-    return crypto.timingSafeEqual(bufferA, bufferB);
+    const paddedA = Buffer.alloc(maxLen, 0);
+
+    const paddedB = Buffer.alloc(maxLen, 0);
+
+    bufferA.copy(paddedA);
+
+    bufferB.copy(paddedB);
+
+    const result = crypto.timingSafeEqual(paddedA, paddedB);
+
+    return result && bufferA.length === bufferB.length;
 
 }
 

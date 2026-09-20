@@ -5,31 +5,40 @@ import {
 } from "../terminal/terminalAgent.js";
 
 
-/* Blocked commands must never execute; they resolve to a safety message. */
+/* Terminal execution is disabled for security; all commands
+   must return the safe refusal message. */
 
 const blockedResult = await runCommand("rm -rf /");
 
 assert.strictEqual(
     blockedResult,
-    "Command blocked for safety",
-    "blocked command must be refused with the safety message"
+    "Terminal execution is disabled for security.",
+    "blocked command must return the disabled message"
 );
 
-
-/* A harmless fixed command must return its actual output. */
-
-const okResult = await runCommand("echo hello");
+const echoResult = await runCommand("echo hello");
 
 assert.strictEqual(
-    typeof okResult,
-    "string",
-    "successful command must resolve to a string"
+    echoResult,
+    "Terminal execution is disabled for security.",
+    "even harmless commands must return the disabled message"
 );
 
-assert.ok(
-    okResult.includes("hello"),
-    "successful command output must contain the echoed text"
+const emptyResult = await runCommand("");
+
+assert.strictEqual(
+    emptyResult,
+    "Terminal execution is disabled for security.",
+    "empty command must return the disabled message"
+);
+
+const nullResult = await runCommand(null);
+
+assert.strictEqual(
+    nullResult,
+    "Terminal execution is disabled for security.",
+    "null command must return the disabled message"
 );
 
 
-console.log("PASS: terminal refuses blocked commands and returns real output");
+console.log("PASS: terminal refuses all commands (execution disabled for security)");

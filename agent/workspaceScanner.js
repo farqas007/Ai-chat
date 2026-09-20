@@ -15,13 +15,39 @@ export class WorkspaceScanner {
 
     walk(dir, result) {
 
-        const items = fs.readdirSync(dir);
+        let items;
+
+        try {
+
+            items = fs.readdirSync(dir);
+
+        } catch {
+
+            return;
+
+        }
 
         for (const item of items) {
 
             const full = path.join(dir, item);
 
-            const stat = fs.statSync(full);
+            let stat;
+
+            try {
+
+                stat = fs.lstatSync(full);
+
+            } catch {
+
+                continue;
+
+            }
+
+            if (stat.isSymbolicLink()) {
+
+                continue;
+
+            }
 
             if (stat.isDirectory()) {
 

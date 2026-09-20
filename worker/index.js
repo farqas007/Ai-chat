@@ -35,7 +35,7 @@ import {
     handleUpstreamError,
     GENERIC_SERVER_ERROR
 } from "../server/upstreamErrors.js";
-import { handleStreamChat } from "../server/streamChat.js";
+import { handleStreamChat, sanitizeHistory } from "../server/streamChat.js";
 import {
     SESSION_COOKIE,
     secureEquals,
@@ -167,6 +167,12 @@ app.use((req, res, next) => {
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
+    if (req.secure || (req.headers["x-forwarded-proto"] === "https")) {
+        res.setHeader(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains"
+        );
+    }
     next();
 });
 
@@ -347,7 +353,7 @@ app.post("/api/chat", requireAuth, chatLimiter.middleware, async (req, res) => {
 
         const messages = [
             { role: "system", content: SYSTEM_PROMPT },
-            ...history,
+            ...sanitizeHistory(history),
             { role: "user", content: message }
         ];
 

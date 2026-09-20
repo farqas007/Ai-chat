@@ -14,10 +14,16 @@ import {
 function safeEqual(a, b) {
     const bufferA = Buffer.from(String(a));
     const bufferB = Buffer.from(String(b));
-    if (bufferA.length !== bufferB.length) {
-        return false;
+    const maxLen = Math.max(bufferA.length, bufferB.length);
+    if (maxLen === 0) {
+        return bufferA.length === bufferB.length;
     }
-    return crypto.timingSafeEqual(bufferA, bufferB);
+    const paddedA = Buffer.alloc(maxLen, 0);
+    const paddedB = Buffer.alloc(maxLen, 0);
+    bufferA.copy(paddedA);
+    bufferB.copy(paddedB);
+    const result = crypto.timingSafeEqual(paddedA, paddedB);
+    return result && bufferA.length === bufferB.length;
 }
 
 // Builds the auth middleware from a resolved auth policy.

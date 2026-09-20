@@ -131,11 +131,17 @@ export function verifySessionToken(token, secret, options = {}) {
     const providedBuffer = Buffer.from(signature);
     const expectedBuffer = Buffer.from(expected);
 
-    if (providedBuffer.length !== expectedBuffer.length) {
+    const maxLen = Math.max(providedBuffer.length, expectedBuffer.length);
+    const paddedA = Buffer.alloc(maxLen, 0);
+    const paddedB = Buffer.alloc(maxLen, 0);
+    providedBuffer.copy(paddedA);
+    expectedBuffer.copy(paddedB);
+
+    if (!crypto.timingSafeEqual(paddedA, paddedB)) {
         return false;
     }
 
-    if (!crypto.timingSafeEqual(providedBuffer, expectedBuffer)) {
+    if (providedBuffer.length !== expectedBuffer.length) {
         return false;
     }
 

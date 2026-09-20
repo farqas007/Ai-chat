@@ -1,93 +1,16 @@
-import { exec } from "child_process";
+/* ===========================================================
+   AI CHAT
+   File : terminalAgent.js
+   Description : Terminal command execution (DISABLED for security).
 
+   Arbitrary command execution via child_process.exec() is not
+   safely usable in a production server. The exec path has been
+   removed. runCommand() always returns a safe refusal message
+   and never spawns a child process.
+   =========================================================== */
 
-const blocked = [
-    "rm -rf",
-    "mkfs",
-    "dd ",
-    "shutdown",
-    "reboot",
-    "format",
-    ":(){ ",        // fork bomb
-    "wget ",
-    "curl ",
-    "nc ",
-    "ncat ",
-    "socat ",
-    "> /dev/sd",    // overwrite block device
-    "mv / ",
-    "chmod 777",
-    "chown root"
-];
+export function runCommand(command) {
 
-
-const DANGEROUS_CHARS = /[;&|`$(){}[\]!#~<>]/;
-
-
-export function runCommand(command){
-
-    if(typeof command !== "string" || !command.trim()){
-        return Promise.resolve("Invalid command");
-    }
-
-
-    const lower = command.toLowerCase().trim();
-
-
-    if(DANGEROUS_CHARS.test(command)){
-        return Promise.resolve(
-            "Command contains unsafe characters and was blocked"
-        );
-    }
-
-
-    for(const item of blocked){
-
-        if(lower.includes(item)){
-
-            return Promise.resolve(
-                "Command blocked for safety"
-            );
-
-        }
-
-    }
-
-
-    return new Promise((resolve)=>{
-
-
-        exec(
-            command,
-            {
-                timeout: 10000,
-                maxBuffer: 1024 * 1024
-            },
-            (error,stdout,stderr)=>{
-
-
-                if(error){
-
-                    resolve(
-                        error.killed
-                            ? "Command timed out"
-                            : error.message
-                    );
-
-                    return;
-
-                }
-
-
-                resolve(
-                    stdout || stderr || ""
-                );
-
-
-            }
-        );
-
-
-    });
+    return Promise.resolve("Terminal execution is disabled for security.");
 
 }

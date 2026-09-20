@@ -608,11 +608,6 @@
     outline-offset:2px;
 }
 
-    color:#fff;
-
-    transition:.25s;
-}
-
 .chat-input:focus{
 
     border-color:#4d8dff;
@@ -631,7 +626,7 @@
     overflow-y:auto;
 
 }
-.search-box{
+#chatContainer .search-box{
 
     background:rgba(30,36,50,.75);
 
@@ -728,13 +723,13 @@ transform:scale(1);
 }
 
 }
-.search-box{
+#chatContainer .search-box{
 
 position:relative;
 
 }
 
-.search-box::before{
+#chatContainer .search-box::before{
 
 content:"";
 

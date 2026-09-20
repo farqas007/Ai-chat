@@ -14,7 +14,7 @@ import { resolveAuthPolicy } from "./authPolicy.js";
 import { createRequireAuth } from "./authMiddleware.js";
 import { isPublicPathname } from "./staticGuard.js";
 import { handleCodexRequest } from "./codexHandler.js";
-import { handleStreamChat } from "./streamChat.js";
+import { handleStreamChat, sanitizeHistory } from "./streamChat.js";
 import { isSensitivePath } from "./pathGuard.js";
 import { resolveServerConfig } from "./serverConfig.js";
 import { isValidImagePrompt } from "./imagePrompt.js";
@@ -133,6 +133,12 @@ app.use((req, res, next) => {
         "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; " +
         "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     );
+    if (req.secure) {
+        res.setHeader(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains"
+        );
+    }
     next();
 });
 
@@ -445,7 +451,7 @@ app.post("/api/chat",
 
         const messages = [
             { role: "system", content: SYSTEM_PROMPT },
-            ...history,
+            ...sanitizeHistory(history),
             { role: "user", content: message }
         ];
 

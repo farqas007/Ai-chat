@@ -585,6 +585,15 @@ export async function createStreamChatResponse(request, config = {}) {
         responseHeaders[key] = value;
     }
 
+    const proto = request.headers && request.headers.get
+        ? request.headers.get("x-forwarded-proto")
+        : null;
+
+    if (proto === "https") {
+        responseHeaders["Strict-Transport-Security"] =
+            "max-age=31536000; includeSubDomains";
+    }
+
     if (origin && Array.isArray(allowedOrigins) && allowedOrigins.includes(origin)) {
         responseHeaders["Access-Control-Allow-Origin"] = origin;
     }
