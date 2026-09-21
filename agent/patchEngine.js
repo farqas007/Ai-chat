@@ -37,10 +37,22 @@ export class PatchEngine {
                 };
             }
 
-            const updated = content.replaceAll(
-                oldCode,
-                newCode
-            );
+            // Count occurrences to prevent silent multi-location edits.
+            const matchCount = content.split(oldCode).length - 1;
+
+            if (matchCount > 1) {
+                return {
+                    success: false,
+                    message: "Ambiguous: old code matches " + matchCount + " locations. Provide more context to target a single match."
+                };
+            }
+
+            const idx = content.indexOf(oldCode);
+
+            const updated =
+                content.slice(0, idx) +
+                newCode +
+                content.slice(idx + oldCode.length);
 
             fs.writeFileSync(
                 fullPath,

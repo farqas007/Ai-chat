@@ -97,7 +97,7 @@ try {
     );
 
 
-    /* Multi-occurrence: all instances of oldCode must be replaced. */
+    /* Multi-occurrence: ambiguous oldCode must be rejected. */
 
     fs.writeFileSync(
         path.join(tmpDir, "multi.txt"),
@@ -114,16 +114,19 @@ try {
 
     assert.strictEqual(
         multi.success,
-        true,
-        "patch must succeed with multiple occurrences"
+        false,
+        "patch must fail when old code matches multiple locations"
     );
 
-    const multiContent = agent.read("multi.txt");
+    assert.ok(
+        multi.error && multi.error.includes("Ambiguous"),
+        "failure must report ambiguity"
+    );
 
     assert.strictEqual(
-        multiContent,
-        "zzz bbb zzz ccc zzz",
-        "replaceAll must replace every occurrence"
+        agent.read("multi.txt"),
+        "aaa bbb aaa ccc aaa",
+        "file must be untouched when the patch is ambiguous"
     );
 
 

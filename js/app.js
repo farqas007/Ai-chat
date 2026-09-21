@@ -344,13 +344,13 @@ Events.on(
         }
 
 
-        const content =
+        const img = document.createElement("img");
 
-            '<img src="' +
+        img.src = image.url;
 
-            image.url.replace(/"/g, "&quot;") +
+        img.alt = "Generated image";
 
-            '" alt="Generated image">';
+        const content = img.outerHTML;
 
 
         const persisted =
@@ -1421,6 +1421,8 @@ Events.on(
 
         };
 
+        this._onEscapeKey = onEscapeKey;
+
         if (
             typeof document !== "undefined" &&
             document &&
@@ -1911,6 +1913,16 @@ Events.on(
 
 
     destroy(){
+
+        if (
+            this._onEscapeKey &&
+            typeof document !== "undefined" &&
+            document &&
+            typeof document.removeEventListener === "function"
+        ) {
+            document.removeEventListener("keydown", this._onEscapeKey);
+            this._onEscapeKey = null;
+        }
 
 
         this.chat.destroy();

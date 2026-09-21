@@ -258,7 +258,7 @@ if(this.elements.imageButton){
 
         "click",
 
-        ()=>{
+        (this._imageBtnClick = ()=>{
 
 
             const prompt = window.prompt(
@@ -286,7 +286,7 @@ if(this.elements.imageButton){
             );
 
 
-        }
+        })
 
     );
 
@@ -300,13 +300,13 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._sendBtnClick = ()=>{
 
 
                     this.sendInput();
 
 
-                }
+                })
 
             );
 
@@ -324,7 +324,7 @@ if(this.elements.imageButton){
 
                 "keydown",
 
-                event=>{
+                (this._inputKeydown = event=>{
 
 
                     if(
@@ -345,7 +345,7 @@ if(this.elements.imageButton){
                     }
 
 
-                }
+                })
 
             );
 
@@ -366,11 +366,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._menuBtnClick = ()=>{
 
                     Events.emit("menu:toggle");
 
-                }
+                })
 
             );
 
@@ -387,11 +387,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._overlayClick = ()=>{
 
                     Events.emit("menu:toggle");
 
-                }
+                })
 
             );
 
@@ -412,11 +412,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._themeToggleClick = ()=>{
 
                     Events.emit("ui:theme-toggle");
 
-                }
+                })
 
             );
 
@@ -437,11 +437,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._voiceToggleClick = ()=>{
 
                     Events.emit("voice:toggle");
 
-                }
+                })
 
             );
 
@@ -456,13 +456,13 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._voiceInputBtnClick = ()=>{
 
 
                     Events.emit("voice-input:toggle");
 
 
-                }
+                })
 
             );
 
@@ -483,11 +483,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._settingsBtnClick = ()=>{
 
                     Events.emit("settings:open");
 
-                }
+                })
 
             );
 
@@ -502,11 +502,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._closeSettingsClick = ()=>{
 
                     Events.emit("settings:close");
 
-                }
+                })
 
             );
 
@@ -521,7 +521,7 @@ if(this.elements.imageButton){
 
                 "click",
 
-                event=>{
+                (this._settingsModalClick = event=>{
 
                     if(event.target === this.elements.settingsModal){
 
@@ -529,7 +529,7 @@ if(this.elements.imageButton){
 
                     }
 
-                }
+                })
 
             );
 
@@ -544,7 +544,7 @@ if(this.elements.imageButton){
 
                 "change",
 
-                event=>{
+                (this._themeSelectChange = event=>{
 
                     Events.emit(
 
@@ -554,7 +554,7 @@ if(this.elements.imageButton){
 
                     );
 
-                }
+                })
 
             );
 
@@ -569,7 +569,7 @@ if(this.elements.imageButton){
 
                 "change",
 
-                event=>{
+                (this._voiceSelectChange = event=>{
 
                     Events.emit(
 
@@ -579,7 +579,7 @@ if(this.elements.imageButton){
 
                     );
 
-                }
+                })
 
             );
 
@@ -599,11 +599,11 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._exportChatClick = ()=>{
 
                     Events.emit("chat:export");
 
-                }
+                })
 
             );
 
@@ -618,7 +618,7 @@ if(this.elements.imageButton){
 
                 "click",
 
-                ()=>{
+                (this._importChatClick = ()=>{
 
                     if(this.elements.chatImportFile){
 
@@ -626,7 +626,7 @@ if(this.elements.imageButton){
 
                     }
 
-                }
+                })
 
             );
 
@@ -641,7 +641,7 @@ if(this.elements.imageButton){
 
                 "change",
 
-                async event=>{
+                (this._chatImportChange = async event=>{
 
                     const file =
 
@@ -684,7 +684,7 @@ if(this.elements.imageButton){
                     }
 
 
-                }
+                })
 
             );
 
@@ -1412,6 +1412,33 @@ if(this.elements.imageButton){
 
     destroy(){
 
+        const elPairs = [
+            ["imageButton", "_imageBtnClick", "click"],
+            ["sendButton", "_sendBtnClick", "click"],
+            ["input", "_inputKeydown", "keydown"],
+            ["menuButton", "_menuBtnClick", "click"],
+            ["sidebarOverlay", "_overlayClick", "click"],
+            ["themeToggle", "_themeToggleClick", "click"],
+            ["voiceToggle", "_voiceToggleClick", "click"],
+            ["voiceInputBtn", "_voiceInputBtnClick", "click"],
+            ["settingsButton", "_settingsBtnClick", "click"],
+            ["closeSettings", "_closeSettingsClick", "click"],
+            ["settingsModal", "_settingsModalClick", "click"],
+            ["themeSelect", "_themeSelectChange", "change"],
+            ["voiceSelect", "_voiceSelectChange", "change"],
+            ["exportChatBtn", "_exportChatClick", "click"],
+            ["importChatBtn", "_importChatClick", "click"],
+            ["chatImportFile", "_chatImportChange", "change"]
+        ];
+
+        for (const [elKey, refKey, evt] of elPairs) {
+            const el = this.elements[elKey];
+            const handler = this[refKey];
+            if (el && handler) {
+                el.removeEventListener(evt, handler);
+                this[refKey] = null;
+            }
+        }
 
         this.messages = [];
 

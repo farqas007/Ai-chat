@@ -44,14 +44,31 @@ globalThis.localStorage = (() => {
 globalThis.document = {
     querySelector: () => null,
     querySelectorAll: () => [],
-    createElement: () => ({
-        className: "", innerHTML: "", style: {},
-        dataset: {},
-        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-        appendChild() {}, addEventListener() {},
-        setAttribute() {}, remove() {}, focus() {},
-        querySelector: () => null
-    }),
+    createElement: (tag) => {
+        const el = {
+            tagName: tag || "div",
+            className: "", innerHTML: "", style: {},
+            src: "", alt: "",
+            dataset: {},
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            appendChild() {}, addEventListener() {},
+            setAttribute() {}, remove() {}, focus() {},
+            querySelector: () => null
+        };
+        Object.defineProperty(el, "outerHTML", {
+            get() {
+                const t = el.tagName || "div";
+                let attrs = "";
+                if (el.src) attrs += ` src="${el.src}"`;
+                if (el.alt) attrs += ` alt="${el.alt}"`;
+                if (el.className) attrs += ` class="${el.className}"`;
+                const VOID = new Set(["img","br","hr","input","meta","link"]);
+                if (VOID.has(t)) return `<${t}${attrs}>`;
+                return `<${t}${attrs}></${t}>`;
+            }
+        });
+        return el;
+    },
     addEventListener() {},
     body: { appendChild() {}, style: {} }
 };

@@ -77,9 +77,10 @@ const SESSION_SECRET = typeof env.SESSION_SECRET === "string"
    Logging in dev-no-auth mode is fine without a secret (sessions
    are bypassed entirely). */
 if (!DEV_NO_AUTH && !SESSION_SECRET) {
-    console.error(
+    throw new Error(
         "SEC: SESSION_SECRET is not configured. " +
-        "Browser session authentication is unavailable until a secret is set."
+        "Browser session authentication cannot work without a secret. " +
+        "Set it via `wrangler secret put SESSION_SECRET`."
     );
 }
 

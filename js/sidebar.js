@@ -174,7 +174,7 @@ bindEvents() {
 
             "click",
 
-            () => {
+            (this._newChatClick = () => {
 
 
                 Events.emit(
@@ -184,7 +184,7 @@ bindEvents() {
                 );
 
 
-            }
+            })
 
         );
 
@@ -207,7 +207,7 @@ bindEvents() {
 
             "click",
 
-            event => {
+            (this._chatListClick = event => {
 
 
                 const item =
@@ -253,7 +253,7 @@ bindEvents() {
                 this.render();
 
 
-            }
+            })
 
         );
 
@@ -262,7 +262,7 @@ bindEvents() {
 
             "keydown",
 
-            event => {
+            (this._chatListKeydown = event => {
 
 
                 if (
@@ -315,7 +315,7 @@ bindEvents() {
                 );
 
 
-            }
+            })
 
         );
 
@@ -338,7 +338,7 @@ bindEvents() {
 
             "input",
 
-            event => {
+            (this._searchInput = event => {
 
 
                 const query =
@@ -350,8 +350,7 @@ bindEvents() {
                 this.search(query);
 
 
-
-            }
+            })
 
         );
 
@@ -735,7 +734,7 @@ registerChatEvents() {
 
         "chat:selected",
 
-        chat => {
+        (this._evChatSelected = chat => {
 
 
             const chatId =
@@ -760,7 +759,7 @@ registerChatEvents() {
             }
 
 
-        }
+        })
 
     );
 
@@ -769,7 +768,7 @@ registerChatEvents() {
 
         "chat:created",
 
-        chat => {
+        (this._evChatCreated = chat => {
 
 
             this.state.chats.push(
@@ -782,7 +781,7 @@ registerChatEvents() {
             this.render();
 
 
-        }
+        })
 
     );
 
@@ -792,7 +791,7 @@ registerChatEvents() {
 
         "chat:imported",
 
-        chat => {
+        (this._evChatImported = chat => {
 
 
             this.state.chats.push(
@@ -805,7 +804,7 @@ registerChatEvents() {
             this.render();
 
 
-        }
+        })
 
     );
 
@@ -815,7 +814,7 @@ registerChatEvents() {
 
         "chat:deleted",
 
-        chatId => {
+        (this._evChatDeleted = chatId => {
 
 
             this.state.chats =
@@ -833,7 +832,7 @@ registerChatEvents() {
             this.render();
 
 
-        }
+        })
 
     );
 
@@ -843,7 +842,7 @@ registerChatEvents() {
 
         "chat:renamed",
 
-        chat => {
+        (this._evChatRenamed = chat => {
 
 
             const item =
@@ -869,7 +868,7 @@ registerChatEvents() {
             this.render();
 
 
-        }
+        })
 
     );
 
@@ -878,7 +877,7 @@ registerChatEvents() {
 
         "chat:title-updated",
 
-        chat => {
+        (this._evChatTitleUpdated = chat => {
 
 
             const item =
@@ -906,7 +905,7 @@ registerChatEvents() {
             this.render();
 
 
-        }
+        })
 
     );
 
@@ -1237,6 +1236,33 @@ reset() {
 ======================================================= */
 
 destroy() {
+
+
+    if (this._newChatClick && this.elements.newChatButton) {
+        this.elements.newChatButton.removeEventListener("click", this._newChatClick);
+        this._newChatClick = null;
+    }
+    if (this.elements.chatList) {
+        if (this._chatListClick) {
+            this.elements.chatList.removeEventListener("click", this._chatListClick);
+            this._chatListClick = null;
+        }
+        if (this._chatListKeydown) {
+            this.elements.chatList.removeEventListener("keydown", this._chatListKeydown);
+            this._chatListKeydown = null;
+        }
+    }
+    if (this._searchInput && this.elements.searchInput) {
+        this.elements.searchInput.removeEventListener("input", this._searchInput);
+        this._searchInput = null;
+    }
+
+    if (this._evChatSelected) { Events.off("chat:selected", this._evChatSelected); this._evChatSelected = null; }
+    if (this._evChatCreated) { Events.off("chat:created", this._evChatCreated); this._evChatCreated = null; }
+    if (this._evChatImported) { Events.off("chat:imported", this._evChatImported); this._evChatImported = null; }
+    if (this._evChatDeleted) { Events.off("chat:deleted", this._evChatDeleted); this._evChatDeleted = null; }
+    if (this._evChatRenamed) { Events.off("chat:renamed", this._evChatRenamed); this._evChatRenamed = null; }
+    if (this._evChatTitleUpdated) { Events.off("chat:title-updated", this._evChatTitleUpdated); this._evChatTitleUpdated = null; }
 
 
     this.reset();

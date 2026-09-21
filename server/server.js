@@ -763,3 +763,18 @@ server.on("error", error => {
     process.exit(1);
 
 });
+
+/* ===========================================================
+   GLOBAL ERROR SAFEGUARD
+   Log unhandled promise rejections and terminate. Do NOT
+   continue running after an unhandled rejection — the process
+   may be in an undefined state.
+   =========================================================== */
+
+process.on("unhandledRejection", (reason) => {
+
+    console.error("Unhandled promise rejection:", reason);
+
+    process.exit(1);
+
+});
