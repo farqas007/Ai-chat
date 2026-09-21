@@ -236,9 +236,6 @@ export async function handleStreamChat(req, res, options = {}) {
     };
 
     const errorEvent = error => {
-        if (clientClosed) {
-            return false;
-        }
         const safe = handleUpstreamError(error);
         return send("error", { error: safe.message });
     };

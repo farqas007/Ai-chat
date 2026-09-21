@@ -13,11 +13,14 @@
    which would surface them as a 502.
 =========================================================== */
 
+export const MAX_IMAGE_PROMPT_LENGTH = 10_000;
+
 export function isValidImagePrompt(prompt) {
 
     return (
         typeof prompt === "string" &&
-        prompt.trim().length > 0
+        prompt.trim().length > 0 &&
+        prompt.length <= MAX_IMAGE_PROMPT_LENGTH
     );
 
 }

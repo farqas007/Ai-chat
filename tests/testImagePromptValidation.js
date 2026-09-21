@@ -20,7 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isValidImagePrompt } from "../server/imagePrompt.js";
+import { isValidImagePrompt, MAX_IMAGE_PROMPT_LENGTH } from "../server/imagePrompt.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +54,23 @@ check("P1 empty string rejected", isValidImagePrompt("") === false);
 check("P1 whitespace-only rejected", isValidImagePrompt("   \t\n") === false);
 check("P1 valid string accepted", isValidImagePrompt("a cat") === true);
 check("P1 padded valid string accepted", isValidImagePrompt("  a cat  ") === true);
+
+
+/* -----------------------------------------------------------
+   P1b — max prompt length (FIX-08).
+----------------------------------------------------------- */
+
+check("P1b MAX_IMAGE_PROMPT_LENGTH is 10000", MAX_IMAGE_PROMPT_LENGTH === 10_000);
+
+check(
+    "P1b prompt at max length accepted",
+    isValidImagePrompt("a".repeat(MAX_IMAGE_PROMPT_LENGTH)) === true
+);
+
+check(
+    "P1b prompt over max length rejected",
+    isValidImagePrompt("a".repeat(MAX_IMAGE_PROMPT_LENGTH + 1)) === false
+);
 
 
 /* -----------------------------------------------------------
@@ -93,6 +110,76 @@ check(
 check(
     "P3 worker no longer uses inline `!prompt || !prompt.trim()`",
     !workerSource.includes("!prompt || !prompt.trim()")
+);
+
+
+/* -----------------------------------------------------------
+   P4 — GET /generate-image/:id maps only safe fields (FIX-07).
+----------------------------------------------------------- */
+
+check(
+    "P4 server GET /generate-image/:id maps id, status, output",
+    serverSource.includes("id: data.id") &&
+    serverSource.includes("status: data.status") &&
+    serverSource.includes("output: data.output")
+);
+
+check(
+    "P4 server GET does not return raw response",
+    !serverSource.includes("return res.json(data);")
+);
+
+check(
+    "P4 worker GET /generate-image/:id maps id, status, output",
+    workerSource.includes("id: data.id") &&
+    workerSource.includes("status: data.status") &&
+    workerSource.includes("output: data.output")
+);
+
+check(
+    "P4 worker GET does not return raw response",
+    !workerSource.includes("return res.json(data);")
+);
+
+
+/* -----------------------------------------------------------
+   P5 — CORS origin comparison is case-insensitive (FIX-09).
+----------------------------------------------------------- */
+
+check(
+    "P5 server CORS uses case-insensitive comparison",
+    serverSource.includes("allowed.toLowerCase() === normalized")
+);
+
+check(
+    "P5 worker CORS uses case-insensitive comparison",
+    workerSource.includes("allowed.toLowerCase() === normalized")
+);
+
+
+/* -----------------------------------------------------------
+   P6 — stream error always emitted before close (FIX-10).
+----------------------------------------------------------- */
+
+const streamServerSource = fs.readFileSync(
+    path.join(repoRoot, "server/streamChat.js"),
+    "utf8"
+);
+
+const streamWorkerSource = fs.readFileSync(
+    path.join(repoRoot, "worker/streamChat.js"),
+    "utf8"
+);
+
+check(
+    "P6 server errorEvent does not silently skip on clientClosed",
+    !streamServerSource.includes("if (clientClosed) {\n            return false;\n        }") &&
+    !streamServerSource.match(/errorEvent\s*=\s*error\s*=>\s*\{\s*\n\s*if\s*\(clientClosed\)/)
+);
+
+check(
+    "P6 worker errorEvent does not silently skip on settled",
+    !streamWorkerSource.match(/errorEvent\s*=\s*error\s*=>\s*\{\s*\n\s*if\s*\(settled\)/)
 );
 
 

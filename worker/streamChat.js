@@ -291,9 +291,6 @@ export function createChatSseStream(config) {
                 };
 
                 const errorEvent = error => {
-                    if (settled) {
-                        return false;
-                    }
                     const safe = handleUpstreamError(error);
                     return emit("error", { error: safe.message });
                 };
@@ -594,7 +591,9 @@ export async function createStreamChatResponse(request, config = {}) {
             "max-age=31536000; includeSubDomains";
     }
 
-    if (origin && Array.isArray(allowedOrigins) && allowedOrigins.includes(origin)) {
+    if (origin && Array.isArray(allowedOrigins) && allowedOrigins.some(
+        allowed => allowed.toLowerCase() === origin.toLowerCase()
+    )) {
         responseHeaders["Access-Control-Allow-Origin"] = origin;
     }
 

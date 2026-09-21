@@ -197,7 +197,10 @@ app.use(cors({
         if (ALLOWED_ORIGINS.length === 0) {
             return callback(null, false);
         }
-        return callback(null, ALLOWED_ORIGINS.includes(origin));
+        const normalized = origin.toLowerCase();
+        return callback(null, ALLOWED_ORIGINS.some(
+            allowed => allowed.toLowerCase() === normalized
+        ));
     },
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -483,7 +486,11 @@ app.get("/generate-image/:id", requireAuth, imageStatusLimiter.middleware, async
 
         const data = await readUpstreamJson(response);
 
-        return res.json(data);
+        return res.json({
+            id: data.id,
+            status: data.status,
+            output: data.output
+        });
 
     } catch (error) {
         console.error("Prediction Error:", error.message);

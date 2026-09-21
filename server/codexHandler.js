@@ -12,8 +12,9 @@ function isFileOperation(body) {
     return (
         typeof body === "object" &&
         body !== null &&
-        body.action !== undefined &&
-        body.file !== undefined
+        !Array.isArray(body) &&
+        typeof body.action === "string" &&
+        typeof body.file === "string"
     );
 }
 
@@ -83,6 +84,20 @@ export async function handleCodexRequest(body, codex) {
     if (isFileOperation(payload)) {
 
         const { action, file, content, oldCode, newCode } = payload;
+
+        if (
+            (content !== undefined && typeof content !== "string") ||
+            (oldCode !== undefined && typeof oldCode !== "string") ||
+            (newCode !== undefined && typeof newCode !== "string")
+        ) {
+            return {
+                status: 400,
+                json: {
+                    success: false,
+                    error: "content, oldCode, and newCode must be strings"
+                }
+            };
+        }
 
         if (!ALLOWED_ACTIONS.includes(action)) {
             return {

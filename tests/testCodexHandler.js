@@ -225,6 +225,51 @@ assert(
 // No "task" route was invoked by the direct file operations above.
 assert("file ops did not run the task pipeline", runCalls === 1);
 
+// 14. Non-string action (number) -> 400, not treated as file op.
+outcome = await call({
+    action: 123,
+    file: "sample.txt",
+    content: "x"
+});
+assert(
+    "numeric action -> 400 (not file op, falls through to task)",
+    outcome.status === 400
+);
+
+// 15. Array body with .action and .file -> 400, not treated as file op.
+const arr = ["create", "sample.txt"];
+arr.action = "create";
+arr.file = "sample.txt";
+arr.content = "x";
+outcome = await call(arr);
+assert(
+    "array body -> 400 (not file op)",
+    outcome.status === 400
+);
+
+// 16. Non-string content -> 400.
+outcome = await call({
+    action: "edit",
+    file: "sample.txt",
+    content: 123
+});
+assert(
+    "numeric content -> 400",
+    outcome.status === 400 &&
+    outcome.json.error === "content, oldCode, and newCode must be strings"
+);
+
+// 17. Non-string oldCode -> 400.
+outcome = await call({
+    action: "edit",
+    file: "sample.txt",
+    oldCode: ["Hello"]
+});
+assert(
+    "array oldCode -> 400",
+    outcome.status === 400
+);
+
 console.log(`\n${passed.length} passed, ${failed.length} failed`);
 
 if (failed.length > 0) {
