@@ -1545,7 +1545,7 @@ showGeneratedImage(image){
 
 
 
-    if (src && /^https?:\/\//i.test(src)) {
+    if (src && (/^https?:\/\//i.test(src) || /^data:image\//i.test(src))) {
 
 
 

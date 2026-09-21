@@ -7,6 +7,9 @@
        rendered as a language-* class.
    F1: strings like "<p", "<table", "<ul" etc. must NOT trigger
        the raw-HTML path unless they form a complete HTML tag.
+   safeUrl: data:image/* URLs are allowed for generated content;
+       all other data: schemes, javascript:, vbscript:, blob:,
+       file: remain blocked.
    Existing Markdown behavior (headings, bold, italic, lists,
    links) must remain intact.
 =========================================================== */
@@ -433,6 +436,296 @@ testMultipleCodeBlocks();
 testInlineCode();
 
 testCodeSpecialCharacters();
+
+
+/* -----------------------------------------------------------
+   TEST 10 — safeUrl: data:image/* URLs are allowed (generated
+   content display). All other data: schemes remain blocked.
+----------------------------------------------------------- */
+
+function testSafeUrlDataImage() {
+
+    assert(
+        "T10 data:image/jpeg;base64 accepted",
+        md.safeUrl("data:image/jpeg;base64,AAAA") === "data:image/jpeg;base64,AAAA"
+    );
+
+    assert(
+        "T10 data:image/png;base64 accepted",
+        md.safeUrl("data:image/png;base64,BBBB") === "data:image/png;base64,BBBB"
+    );
+
+    assert(
+        "T10 data:image/webp accepted",
+        md.safeUrl("data:image/webp;base64,CCCC") === "data:image/webp;base64,CCCC"
+    );
+
+    assert(
+        "T10 data:text/html rejected",
+        md.safeUrl("data:text/html,<script>alert(1)</script>") === null
+    );
+
+    assert(
+        "T10 data:text/javascript rejected",
+        md.safeUrl("data:text/javascript,alert(1)") === null
+    );
+
+    assert(
+        "T10 data:application/pdf rejected",
+        md.safeUrl("data:application/pdf;base64,xxx") === null
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 11 — safeUrl: existing forbidden schemes still blocked.
+----------------------------------------------------------- */
+
+function testSafeUrlForbiddenSchemes() {
+
+    assert(
+        "T11 javascript: blocked",
+        md.safeUrl("javascript:alert(1)") === null
+    );
+
+    assert(
+        "T11 vbscript: blocked",
+        md.safeUrl("vbscript:MsgBox(1)") === null
+    );
+
+    assert(
+        "T11 blob: blocked",
+        md.safeUrl("blob:https://example.com/xxx") === null
+    );
+
+    assert(
+        "T11 file: blocked",
+        md.safeUrl("file:///etc/passwd") === null
+    );
+
+    assert(
+        "T11 http:// allowed",
+        md.safeUrl("https://example.com/img.png") === "https://example.com/img.png"
+    );
+
+    assert(
+        "T11 empty returns null",
+        md.safeUrl("") === null
+    );
+
+    assert(
+        "T11 null returns null",
+        md.safeUrl(null) === null
+    );
+
+    assert(
+        "T11 control chars blocked",
+        md.safeUrl("https://example.com\u0001/img.png") === null
+    );
+
+    assert(
+        "T11 null byte blocked",
+        md.safeUrl("https://example.com\0/img.png") === null
+    );
+
+}
+
+
+testSafeUrlDataImage();
+
+testSafeUrlForbiddenSchemes();
+
+
+/* -----------------------------------------------------------
+   DOM shim + TEST 12 — Sanitizer render-level tests.
+
+   These prove context-safe behavior: data:image/* is allowed
+   in <img src> but stripped from <a href>.
+   All other dangerous schemes remain blocked in both contexts.
+----------------------------------------------------------- */
+
+function testSanitizerContextSafety() {
+
+    // Skip if no real document (Node without shim).
+    // The shim below lets sanitize() run its DOM path.
+    if (typeof document === "undefined") {
+
+        // Minimal DOM shim for template.innerHTML parsing
+        class ShimAttr {
+            constructor(n, v) { this.name = n; this.value = v; }
+        }
+
+        class ShimEl {
+            constructor(tag) {
+                this.tagName = tag;
+                this._attrs = [];
+                this.children = [];
+                this._innerHTML = "";
+            }
+            get attributes() { return this._attrs; }
+            get childNodes() { return this.children; }
+            get innerHTML() { return this._serialize(this); }
+            set innerHTML(v) { this._innerHTML = v; this.children = this._parseChildren(v); }
+            getAttribute(n) {
+                const a = this._attrs.find(a => a.name === n);
+                return a ? a.value : null;
+            }
+            hasAttribute(n) { return this._attrs.some(a => a.name === n); }
+            setAttribute(n, v) {
+                const a = this._attrs.find(a => a.name === n);
+                if (a) a.value = v; else this._attrs.push(new ShimAttr(n, v));
+            }
+            removeAttribute(n) { this._attrs = this._attrs.filter(a => a.name !== n); }
+            remove() {
+                if (this._parent) {
+                    this._parent.children = this._parent.children.filter(c => c !== this);
+                }
+            }
+            replaceWith(...nodes) {
+                if (this._parent) {
+                    const i = this._parent.children.indexOf(this);
+                    this._parent.children.splice(i, 1, ...nodes);
+                    nodes.forEach(n => { if (n instanceof ShimEl) n._parent = this._parent; });
+                }
+            }
+            _parseChildren(html) {
+                const out = [];
+                const VOID = new Set([
+                    "IMG","BR","HR","INPUT","AREA","BASE","COL","LINK","META","PARAM","SOURCE","TRACK","WBR"
+                ]);
+                // Match closing-tag elements AND self-closing void elements
+                const re = /<(\w+)([^>]*)>([\s\S]*?)<\/\1>|<(\w+)([^>]*?)\/?>/g;
+                let m;
+                while ((m = re.exec(html))) {
+                    const tag = (m[1] || m[4] || "").toUpperCase();
+                    const attrStr = m[2] !== undefined ? m[2] : m[5];
+                    const inner = m[3] !== undefined ? m[3] : "";
+                    if (!tag) continue;
+                    const el = new ShimEl(tag);
+                    el._parent = this;
+                    const attrRe = /(\w[\w-]*)(?:="([^"]*)")?/g;
+                    let am;
+                    while ((am = attrRe.exec(attrStr))) {
+                        el._attrs.push(new ShimAttr(am[1], am[2] || ""));
+                    }
+                    if (!VOID.has(tag)) {
+                        el.innerHTML = inner;
+                    }
+                    out.push(el);
+                }
+                return out;
+            }
+            _serialize(node) {
+                let s = "";
+                for (const c of node.children) {
+                    s += "<" + c.tagName.toLowerCase();
+                    for (const a of c._attrs) s += " " + a.name + '="' + a.value + '"';
+                    s += ">" + this._serialize(c) + "</" + c.tagName.toLowerCase() + ">";
+                }
+                return s;
+            }
+        }
+
+        globalThis.document = {
+            createElement() {
+                const el = new ShimEl("TEMPLATE");
+                return {
+                    set innerHTML(v) { el.innerHTML = v; },
+                    get innerHTML() { return el.innerHTML; },
+                    get content() { return el; }
+                };
+            }
+        };
+    }
+
+    // img src: data:image/* must survive
+    const imgJpeg = md.render('<img src="data:image/jpeg;base64,AAAA" alt="test">');
+    assert(
+        "T12 data:image/jpeg in <img src> preserved",
+        imgJpeg.includes('src="data:image/jpeg;base64,AAAA"')
+    );
+
+    const imgPng = md.render('<img src="data:image/png;base64,BBBB" alt="pic">');
+    assert(
+        "T12 data:image/png in <img src> preserved",
+        imgPng.includes('src="data:image/png;base64,BBBB"')
+    );
+
+    // img src: non-image data: must still be blocked
+    const imgHtml = md.render('<img src="data:text/html,<script>alert(1)</script>">');
+    assert(
+        "T12 data:text/html in <img src> blocked",
+        !imgHtml.includes("data:text/html")
+    );
+
+    // <a href>: all data: schemes must be stripped
+    const aImgJpeg = md.render('<a href="data:image/jpeg;base64,AAAA">click</a>');
+    assert(
+        "T12 data:image/jpeg in <a href> stripped",
+        !aImgJpeg.includes("data:image/jpeg") && aImgJpeg.includes("<a")
+    );
+
+    const aImgSvg = md.render('<a href="data:image/svg+xml,<script>alert(1)</script>">click</a>');
+    assert(
+        "T12 data:image/svg+xml in <a href> stripped",
+        !aImgSvg.includes("data:image")
+    );
+
+    const aTextHtml = md.render('<a href="data:text/html,<script>alert(1)</script>">click</a>');
+    assert(
+        "T12 data:text/html in <a href> blocked",
+        !aTextHtml.includes("data:")
+    );
+
+    const aTextJs = md.render('<a href="data:text/javascript,alert(1)">click</a>');
+    assert(
+        "T12 data:text/javascript in <a href> blocked",
+        !aTextJs.includes("data:")
+    );
+
+    // <a href>: javascript/vbscript/blob/file still blocked
+    const aJs = md.render('<a href="javascript:alert(1)">click</a>');
+    assert(
+        "T12 javascript: in <a href> blocked",
+        !aJs.includes("javascript:")
+    );
+
+    const aVbs = md.render('<a href="vbscript:MsgBox(1)">click</a>');
+    assert(
+        "T12 vbscript: in <a href> blocked",
+        !aVbs.includes("vbscript:")
+    );
+
+    const aBlob = md.render('<a href="blob:https://example.com/x">click</a>');
+    assert(
+        "T12 blob: in <a href> blocked",
+        !aBlob.includes("blob:")
+    );
+
+    const aFile = md.render('<a href="file:///etc/passwd">click</a>');
+    assert(
+        "T12 file: in <a href> blocked",
+        !aFile.includes("file:")
+    );
+
+    // <a href>: https still allowed
+    const aHttps = md.render('<a href="https://example.com">click</a>');
+    assert(
+        "T12 https:// in <a href> allowed",
+        aHttps.includes('href="https://example.com"')
+    );
+
+    // onclick stripped, href preserved when safe
+    const aOnClick = md.render('<a href="https://safe.com" onclick="alert(1)">go</a>');
+    assert(
+        "T12 onclick stripped from <a>",
+        !aOnClick.includes("onclick") && aOnClick.includes("https://safe.com")
+    );
+
+}
+
+testSanitizerContextSafety();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

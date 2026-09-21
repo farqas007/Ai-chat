@@ -235,8 +235,10 @@ export class Markdown {
 
 
     // Allows http(s), mailto and relative URLs only.
-    // Blocks javascript:, data:, vbscript:, blob:, file:,
+    // Blocks javascript:, vbscript:, blob:, file:,
     // protocol-relative hosts and any scheme obfuscation / control chars.
+    // data: URLs are blocked EXCEPT safe inline images (data:image/*)
+    // which are needed for generated content display.
     safeUrl(value) {
 
         const trimmed = String(value || "").trim();
@@ -252,6 +254,12 @@ export class Markdown {
         }
 
         const lower = trimmed.toLowerCase();
+
+        // Allow safe inline images only. data:text/html, data:application/*,
+        // javascript:, etc. remain blocked below.
+        if (lower.startsWith("data:image/")) {
+            return trimmed;
+        }
 
         const FORBIDDEN_SCHEMES = [
             "javascript:",
@@ -365,6 +373,12 @@ export class Markdown {
                     if (name === "href" || name === "src") {
                         const url = safeUrl(attr.value);
                         if (!url) {
+                            child.removeAttribute(attr.name);
+                        } else if (
+                            child.tagName === "A" &&
+                            name === "href" &&
+                            url.toLowerCase().startsWith("data:")
+                        ) {
                             child.removeAttribute(attr.name);
                         } else {
                             child.setAttribute(attr.name, url);
