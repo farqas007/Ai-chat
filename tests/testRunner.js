@@ -62,6 +62,7 @@ const REAL_TESTS = [
     "tests/testImageGenerator.js",
 
     "tests/testImagePersistence.js",
+    "tests/testImageIntentDetection.js",
     "tests/testImagePromptValidation.js",
     "tests/testMarkdown.js",
     "tests/testMemory.js",

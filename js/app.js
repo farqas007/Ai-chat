@@ -9,6 +9,8 @@ import Events from "./events.js";
 
 import { ImageGenerator } from "./imageGenerator.js";
 
+import { isImageGenerationIntent, extractImagePrompt } from "./imageIntent.js";
+
 import { Storage } from "./storage.js";
 
 import { Settings } from "./settings.js";
@@ -401,6 +403,14 @@ Events.on(
         this.ui.showTyping(false);
 
         this.toggleImageButton(true);
+
+        if (this._imageFromChat) {
+
+            this._imageFromChat = false;
+
+            this.releaseSendLock();
+
+        }
 
     }
 
@@ -1078,6 +1088,35 @@ Events.on(
             // Intentional duplicate-submit race suppression. The
             // composer is left untouched so no input is lost.
             return false;
+
+        }
+
+
+        /* -------------------------------------------------------
+           IMAGE INTENT INTERCEPT
+           If the message looks like an image-generation request,
+           route it to the existing image:generate flow instead
+           of the chat LLM.
+        ------------------------------------------------------- */
+        if (isImageGenerationIntent(text)) {
+
+            const imagePrompt = extractImagePrompt(text);
+
+            if (imagePrompt) {
+
+                this.chat.addMessage("user", text.trim());
+
+                this.state.sending = true;
+
+                this.ui.setSending(true);
+
+                this._imageFromChat = true;
+
+                Events.emit("image:generate", imagePrompt);
+
+                return true;
+
+            }
 
         }
 
