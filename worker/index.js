@@ -8,7 +8,7 @@
    - It does NOT import server/server.js (the Node server is untouched).
    - It exposes ONLY the portable API surface:
        /api/health, /api/session, /api/login, /api/logout,
-       /api/chat (JSON + SSE), /generate-image, /generate-image/:id
+       /api/chat (JSON + SSE), /generate-image
    - CodeAgent/codex/file/terminal routes are deliberately NOT
      registered, so they are unavailable (404) on Workers.
 
@@ -32,8 +32,7 @@ import { resolveServerConfig } from "../server/serverConfig.js";
 import { isValidImagePrompt } from "../server/imagePrompt.js";
 import {
     readUpstreamJson,
-    handleUpstreamError,
-    GENERIC_SERVER_ERROR
+    handleUpstreamError
 } from "../server/upstreamErrors.js";
 import { handleStreamChat, sanitizeHistory } from "../server/streamChat.js";
 import {
@@ -85,10 +84,6 @@ if (!DEV_NO_AUTH && !SESSION_SECRET) {
 }
 
 const { allowedOrigins: ALLOWED_ORIGINS } = resolveServerConfig(env);
-
-const REPLICATE_API = "https://api.replicate.com/v1";
-
-const REPLICATE_KEY = env.REPLICATE_API_KEY;
 
 const OPENROUTER_KEY = env.OPENROUTER_API_KEY;
 
@@ -232,8 +227,6 @@ const chatLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 20 });
 const logoutLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
 
 const imageCreateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 10 });
-
-const imageStatusLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 60 });
 
 /* ===========================================================
    HEALTH CHECK
@@ -412,17 +405,11 @@ app.post("/api/chat", requireAuth, chatLimiter.middleware, async (req, res) => {
 });
 
 /* ===========================================================
-   GENERATE IMAGE (Replicate)
+   GENERATE IMAGE (Workers AI — @cf/black-forest-labs/flux-1-schnell)
+   Synchronous: returns base64 JPEG in a single request.
    =========================================================== */
 
 app.post("/generate-image", requireAuth, imageCreateLimiter.middleware, async (req, res) => {
-
-    if (!REPLICATE_KEY) {
-        return res.status(503).json({
-            success: false,
-            error: "REPLICATE_API_KEY not configured."
-        });
-    }
 
     try {
         const { prompt } = req.body;
@@ -434,70 +421,30 @@ app.post("/generate-image", requireAuth, imageCreateLimiter.middleware, async (r
             });
         }
 
-        const response = await fetch(
-            "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
-            {
-                method: "POST",
-                headers: {
-                    "Authorization": `Token ${REPLICATE_KEY}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ input: { prompt } }),
-                signal: AbortSignal.timeout(30000)
-            }
+        const response = await env.AI.run(
+            "@cf/black-forest-labs/flux-1-schnell",
+            { prompt, steps: 4 }
         );
 
-        const data = await readUpstreamJson(response);
+        if (!response || typeof response.image !== "string" || !response.image) {
+            return res.status(502).json({
+                success: false,
+                error: "Image generation failed."
+            });
+        }
+
+        const dataURI = `data:image/jpeg;charset=utf-8;base64,${response.image}`;
 
         return res.json({
             success: true,
-            id: data.id,
-            status: data.status
+            image: dataURI
         });
 
     } catch (error) {
         console.error("Image Generation Error:", error.message);
-        const safe = handleUpstreamError(error);
-        return res.status(safe.status).json({
+        return res.status(502).json({
             success: false,
-            error: safe.message
-        });
-    }
-
-});
-
-app.get("/generate-image/:id", requireAuth, imageStatusLimiter.middleware, async (req, res) => {
-
-    if (!REPLICATE_KEY) {
-        return res.status(503).json({
-            success: false,
-            error: "REPLICATE_API_KEY not configured."
-        });
-    }
-
-    try {
-        const response = await fetch(
-            `${REPLICATE_API}/predictions/${encodeURIComponent(req.params.id)}`,
-            {
-                headers: { "Authorization": `Token ${REPLICATE_KEY}` },
-                signal: AbortSignal.timeout(30000)
-            }
-        );
-
-        const data = await readUpstreamJson(response);
-
-        return res.json({
-            id: data.id,
-            status: data.status,
-            output: data.output
-        });
-
-    } catch (error) {
-        console.error("Prediction Error:", error.message);
-        const safe = handleUpstreamError(error);
-        return res.status(safe.status).json({
-            success: false,
-            error: safe.message
+            error: "Image generation failed. Please try again."
         });
     }
 

@@ -1,18 +1,21 @@
 /* ===========================================================
    Regression tests for the ImageGenerator.
 
+   Tests the synchronous Workers AI flow where POST /generate-image
+   returns { success, image } in a single request.
+
    S1 (client token):
        getAuthHeaders() never sends an Authorization header and
        never reads window.AI_CHAT_TOKEN or localStorage — the
        client is fully cookie-based.
    Error handling:
-       generate()/checkStatus() check the HTTP status before
-       trusting JSON; a non-JSON error body throws a clean
-       Error, never a SyntaxError.
+       generate() checks the HTTP status before trusting JSON;
+       a non-JSON error body throws a clean Error, never a
+       SyntaxError.
    F12 (reliability):
-       waitForImage() resolves on "succeeded", rejects on
-       "failed", rejects on a bounded timeout, and destroy()
-       cancels an in-flight poll. Every path clears the timer.
+       generate() fires the full start->created->end event
+       contract. Loading state is cleared on both success and
+       failure. No polling or timers are used.
 =========================================================== */
 
 import { ImageGenerator } from "../js/imageGenerator.js";
@@ -56,8 +59,6 @@ function createGenerator(fetchImpl, config = {}) {
 
     generator.configure({
         endpoint: "https://example.test/generate-image",
-        pollInterval: 5,
-        pollTimeout: 50,
         ...config
     });
 
@@ -169,217 +170,104 @@ async function testHttpErrorBeforeJson() {
 
 
 /* -----------------------------------------------------------
-   TEST 4 — F12: waitForImage resolves on "succeeded".
+   TEST 4 — Successful synchronous generate returns image data.
 ----------------------------------------------------------- */
 
-async function testSucceededPoll() {
+async function testSynchronousSuccess() {
 
-    let calls = 0;
-
-    const generator = createGenerator(async (url) => {
-
-        calls++;
-
-        return mockResponse({
-            body: calls === 1
-                ? { status: "processing" }
-                : { status: "succeeded", output: ["https://img/pic.png"] }
-        });
-
-    });
-
-    const url = await generator.waitForImage("pred-1");
-
-    assert("T4 resolved with output[0]", url === "https://img/pic.png");
-
-    assert(
-        "T4 no timer leaked after success",
-        generator._pollTimer === null
-    );
-
-}
-
-
-/* -----------------------------------------------------------
-   TEST 5 — F12: waitForImage rejects on "failed".
------------------------------------------------------------ */
-
-async function testFailedPoll() {
+    const fakeDataURI = "data:image/jpeg;charset=utf-8;base64,AAAA";
 
     const generator = createGenerator(async () => mockResponse({
-        body: { status: "failed" }
+        body: { success: true, image: fakeDataURI }
     }));
 
-    const error = await expectThrows(generator.waitForImage("pred-2"));
+    const image = await generator.generate("a sunset");
 
     assert(
-        "T5 rejected on failed status",
-        error && /failed/.test(error.message)
+        "T4 resolved with image data URI",
+        image && image.url === fakeDataURI
     );
 
     assert(
-        "T5 no timer leaked after failure",
-        generator._pollTimer === null
+        "T4 image has an id",
+        image && typeof image.id === "string" && image.id.startsWith("img_")
+    );
+
+    assert(
+        "T4 image has prompt",
+        image && image.prompt === "a sunset"
+    );
+
+    assert(
+        "T4 image has createdAt",
+        image && typeof image.createdAt === "string"
     );
 
 }
 
 
 /* -----------------------------------------------------------
-   TEST 6 — F12: waitForImage rejects on bounded timeout.
+   TEST 5 — Missing image data in response is rejected.
 ----------------------------------------------------------- */
 
-async function testTimeout() {
+async function testMissingImageData() {
 
     const generator = createGenerator(async () => mockResponse({
-        body: { status: "processing" }
+        body: { success: true }
     }));
 
-    const error = await expectThrows(generator.waitForImage("pred-3"));
+    const error = await expectThrows(generator.generate("a cat"));
 
     assert(
-        "T6 rejected on timeout",
-        error && /timed out/.test(error.message)
-    );
-
-    assert(
-        "T6 no timer leaked after timeout",
-        generator._pollTimer === null
+        "T5 rejected when image field missing",
+        error && /no image data/.test(error.message)
     );
 
 }
 
 
 /* -----------------------------------------------------------
-   TEST 7 — F12: destroy() cancels an in-flight poll.
+   TEST 6 — Empty string image data is rejected.
 ----------------------------------------------------------- */
 
-async function testDestroyCancelsPoll() {
+async function testEmptyImageData() {
 
     const generator = createGenerator(async () => mockResponse({
-        body: { status: "processing" }
+        body: { success: true, image: "" }
     }));
 
-    const pending = generator.waitForImage("pred-4");
-
-    generator.destroy();
-
-    const error = await expectThrows(pending);
+    const error = await expectThrows(generator.generate("a cat"));
 
     assert(
-        "T7 destroy rejects pending poll",
-        error && /cancelled/.test(error.message)
-    );
-
-    assert(
-        "T7 no timer leaked after destroy",
-        generator._pollTimer === null &&
-        generator._pollReject === null &&
-        generator._pollResolve === null
+        "T6 rejected when image is empty string",
+        error && /no image data/.test(error.message)
     );
 
 }
 
 
-await testNoClientToken();
-
-await testNonJsonError();
-
-await testHttpErrorBeforeJson();
-
-await testSucceededPoll();
-
-await testFailedPoll();
-
-await testTimeout();
-
-await testDestroyCancelsPoll();
-
-
 /* -----------------------------------------------------------
-   TEST 8 — F2: transient polling failures are retried and do
-   NOT abort immediately; success still resolves.
+   TEST 7 — Non-string image data is rejected.
 ----------------------------------------------------------- */
 
-async function testTransientPollRetry() {
+async function testNonStringImageData() {
 
-    let calls = 0;
+    const generator = createGenerator(async () => mockResponse({
+        body: { success: true, image: 12345 }
+    }));
 
-    const generator = createGenerator(async () => {
-
-        calls++;
-
-        if (calls <= 2) {
-
-            throw new Error("network blip");
-
-        }
-
-        return mockResponse({
-            body: { status: "succeeded", output: ["https://img/retried.png"] }
-        });
-
-    }, { pollRetries: 3 });
-
-    const url = await generator.waitForImage("pred-8");
+    const error = await expectThrows(generator.generate("a cat"));
 
     assert(
-        "T8 transient failures retried then resolved",
-        url === "https://img/retried.png"
-    );
-
-    assert(
-        "T8 retry actually occurred (3+ polls)",
-        calls >= 3
-    );
-
-    assert(
-        "T8 no timer leaked after retry success",
-        generator._pollTimer === null
+        "T7 rejected when image is not a string",
+        error && /no image data/.test(error.message)
     );
 
 }
 
 
 /* -----------------------------------------------------------
-   TEST 9 — F2: retry is bounded; exhausting retries surfaces
-   the polling error instead of polling forever.
------------------------------------------------------------ */
-
-async function testBoundedTransientRetry() {
-
-    let calls = 0;
-
-    const generator = createGenerator(async () => {
-
-        calls++;
-
-        throw new Error("always down");
-
-    }, { pollRetries: 2 });
-
-    const error = await expectThrows(generator.waitForImage("pred-9"));
-
-    assert(
-        "T9 persistent failure rejects after bounded retries",
-        error && error.message === "always down"
-    );
-
-    assert(
-        "T9 bounded: exactly maxRetries+1 polls",
-        calls === 3
-    );
-
-    assert(
-        "T9 no timer leaked after bounded rejection",
-        generator._pollTimer === null
-    );
-
-}
-
-
-/* -----------------------------------------------------------
-   TEST 10 — F2: successful generate() drives loading state and
+   TEST 8 — F2: successful generate() drives loading state and
    fires the full start->created->end event contract.
 ----------------------------------------------------------- */
 
@@ -395,6 +283,8 @@ async function testSuccessLoadingAndEvents() {
     Events.on("image:created", onCreate);
     Events.on("image:end", onEnd);
 
+    const fakeDataURI = "data:image/jpeg;charset=utf-8;base64,BBBB";
+
     const loadingDuringPost = [];
 
     const generator = createGenerator(async (url, opts) => {
@@ -403,45 +293,43 @@ async function testSuccessLoadingAndEvents() {
 
             loadingDuringPost.push(generator.state.loading);
 
-            return mockResponse({ body: { success: true, id: "pred-10" } });
+            return mockResponse({ body: { success: true, image: fakeDataURI } });
 
         }
 
-        return mockResponse({
-            body: { status: "succeeded", output: ["https://img/success.png"] }
-        });
+        return mockResponse({ status: 404, body: { error: "not found" } });
 
     });
 
     const image = await generator.generate("a cactus");
 
     assert(
-        "T10 loading true while the POST request is in-flight",
+        "T8 loading true while the POST request is in-flight",
         loadingDuringPost[0] === true
     );
 
     assert(
-        "T10 image:start fired",
+        "T8 image:start fired",
         events.start === true
     );
 
     assert(
-        "T10 resolve returned the image URL",
-        image && image.url === "https://img/success.png"
+        "T8 resolve returned the image data URI",
+        image && image.url === fakeDataURI
     );
 
     assert(
-        "T10 image:created fired with the generated image",
+        "T8 image:created fired with the generated image",
         events.created && events.created.id === image.id
     );
 
     assert(
-        "T10 image:end fired",
+        "T8 image:end fired",
         events.end === true
     );
 
     assert(
-        "T10 loading cleared after success",
+        "T8 loading cleared after success",
         generator.state.loading === false
     );
 
@@ -453,7 +341,7 @@ async function testSuccessLoadingAndEvents() {
 
 
 /* -----------------------------------------------------------
-   TEST 11 — F2: generate() failure clears the loading state and
+   TEST 9 — F2: generate() failure clears the loading state and
    still fires image:end (finally) plus the error event.
 ----------------------------------------------------------- */
 
@@ -475,23 +363,23 @@ async function testFailureClearsLoading() {
     const error = await expectThrows(generator.generate("a dog"));
 
     assert(
-        "T11 failure surfaces a clean error",
+        "T9 failure surfaces a clean error",
         error && error.message === "provider boom"
     );
 
     assert(
-        "T11 loading cleared after failure",
+        "T9 loading cleared after failure",
         generator.state.loading === false
     );
 
     assert(
-        "T11 image:error fired",
+        "T9 image:error fired",
         events.errors.length === 1 &&
         events.errors[0].message === "provider boom"
     );
 
     assert(
-        "T11 image:end still fired in finally",
+        "T9 image:end still fired in finally",
         events.ends === 1
     );
 
@@ -501,13 +389,188 @@ async function testFailureClearsLoading() {
 }
 
 
-await testTransientPollRetry();
+/* -----------------------------------------------------------
+   TEST 10 — Provider returns success:false with error message.
+----------------------------------------------------------- */
 
-await testBoundedTransientRetry();
+async function testProviderSuccessFalse() {
+
+    const generator = createGenerator(async () => mockResponse({
+        body: { success: false, error: "quota exceeded" }
+    }));
+
+    const error = await expectThrows(generator.generate("a cat"));
+
+    assert(
+        "T10 success:false surfaces error message",
+        error && error.message === "quota exceeded"
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 11 — Empty/null prompt returns null without making a
+   request.
+----------------------------------------------------------- */
+
+async function testEmptyPromptReturnsNull() {
+
+    let fetchCalled = false;
+
+    const generator = createGenerator(async () => {
+        fetchCalled = true;
+        return mockResponse({ body: { success: true, image: "data:image/jpeg;base64,xxx" } });
+    });
+
+    const resultNull = await generator.generate(null);
+    const resultEmpty = await generator.generate("");
+    const resultWhitespace = await generator.generate("   ");
+
+    assert(
+        "T11 null prompt returns null",
+        resultNull === null
+    );
+
+    assert(
+        "T11 empty prompt returns null",
+        resultEmpty === null
+    );
+
+    assert(
+        "T11 whitespace prompt returns null",
+        resultWhitespace === null
+    );
+
+    assert(
+        "T11 no fetch call made for empty prompts",
+        fetchCalled === false
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 12 — Images are accumulated in state.
+----------------------------------------------------------- */
+
+async function testImagesAccumulated() {
+
+    const generator = createGenerator(async () => mockResponse({
+        body: { success: true, image: "data:image/jpeg;base64,XXX" }
+    }));
+
+    await generator.generate("a cat");
+    await generator.generate("a dog");
+
+    const images = generator.getImages();
+
+    assert(
+        "T12 two images accumulated",
+        images.length === 2
+    );
+
+    assert(
+        "T12 first image has correct prompt",
+        images[0].prompt === "a cat"
+    );
+
+    assert(
+        "T12 second image has correct prompt",
+        images[1].prompt === "a dog"
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 13 — No polling or timer leaks after operations.
+----------------------------------------------------------- */
+
+async function testNoTimers() {
+
+    const generator = createGenerator(async () => mockResponse({
+        body: { success: true, image: "data:image/jpeg;base64,YYY" }
+    }));
+
+    await generator.generate("a bird");
+
+    assert(
+        "T13 no _pollTimer after generate",
+        generator._pollTimer === undefined || generator._pollTimer === null
+    );
+
+    assert(
+        "T13 no _pollResolve after generate",
+        generator._pollResolve === undefined || generator._pollResolve === null
+    );
+
+    assert(
+        "T13 no _pollReject after generate",
+        generator._pollReject === undefined || generator._pollReject === null
+    );
+
+}
+
+
+/* -----------------------------------------------------------
+   TEST 14 — generate() failure does not leak timers.
+----------------------------------------------------------- */
+
+async function testNoTimersOnError() {
+
+    const generator = createGenerator(async () => mockResponse({
+        status: 500,
+        body: { success: false, error: "fail" }
+    }));
+
+    await expectThrows(generator.generate("a cat"));
+
+    assert(
+        "T14 no _pollTimer after error",
+        generator._pollTimer === undefined || generator._pollTimer === null
+    );
+
+    assert(
+        "T14 no _pollResolve after error",
+        generator._pollResolve === undefined || generator._pollResolve === null
+    );
+
+    assert(
+        "T14 no _pollReject after error",
+        generator._pollReject === undefined || generator._pollReject === null
+    );
+
+}
+
+
+await testNoClientToken();
+
+await testNonJsonError();
+
+await testHttpErrorBeforeJson();
+
+await testSynchronousSuccess();
+
+await testMissingImageData();
+
+await testEmptyImageData();
+
+await testNonStringImageData();
 
 await testSuccessLoadingAndEvents();
 
 await testFailureClearsLoading();
+
+await testProviderSuccessFalse();
+
+await testEmptyPromptReturnsNull();
+
+await testImagesAccumulated();
+
+await testNoTimers();
+
+await testNoTimersOnError();
 
 
 console.log(`\n${passed.length} passed, ${failed.length} failed`);

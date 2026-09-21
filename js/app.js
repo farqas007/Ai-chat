@@ -339,7 +339,7 @@ Events.on(
 
     image=>{
 
-        if (!image || typeof image.url !== "string" || !/^https?:\/\//i.test(image.url)) {
+        if (!image || typeof image.url !== "string" || !image.url) {
 
             return;
 

@@ -2,6 +2,10 @@
    AI CHAT
    File : imageGenerator.js
    Description : Image Generation Manager
+
+   Uses the synchronous Workers AI endpoint (POST /generate-image)
+   which returns a base64 data URI in a single request. No polling
+   or prediction-ID tracking is needed.
 =========================================================== */
 
 
@@ -19,9 +23,8 @@ export class ImageGenerator {
     constructor(){
 
         this.config = {
-            provider: "replicate",
-            endpoint: "/generate-image",
-            model: "black-forest-labs/flux-schnell"
+            provider: "workers-ai",
+            endpoint: "/generate-image"
         };
 
         this.state = {
@@ -77,6 +80,7 @@ export class ImageGenerator {
 
     /* =======================================================
        GENERATE IMAGE
+       POST the prompt; receive { success, image } synchronously.
     ======================================================= */
 
 async generate(prompt){
@@ -108,17 +112,16 @@ async generate(prompt){
             throw new Error(error);
         }
 
+        if (typeof data.image !== "string" || !data.image) {
+            throw new Error("Image generation returned no image data.");
+        }
+
         const image = {
             id: "img_" + Date.now(),
             prompt,
-            predictionId: data.id,
-            url: null,
+            url: data.image,
             createdAt: new Date().toISOString()
         };
-
-        const imageUrl = await this.waitForImage(data.id);
-
-        image.url = imageUrl;
 
         this.state.images.push(image);
 
@@ -150,7 +153,7 @@ async generate(prompt){
 
 /* =======================================================
    SAFE JSON RESPONSE READER
-======================================================= */
+=========================================================== */
 
 
 async readJsonResponse(response, fallbackMessage){
@@ -172,115 +175,6 @@ async readJsonResponse(response, fallbackMessage){
     }
 
     return data;
-
-}
-   /* =======================================================
-   CHECK IMAGE STATUS
-======================================================= */
-
-
-async checkStatus(id){
-
-    const response = await fetch(
-        `${this.config.endpoint}/${id}`,
-        { method: "GET", headers: this.getAuthHeaders() }
-    );
-
-    return this.readJsonResponse(response, "Failed to check image status");
-
-}
-
-/* =======================================================
-   WAIT FOR IMAGE
-   Polls with a bounded timeout. The polling timer is
-   guaranteed to be cleared on success, failure, timeout
-   or destroy() — no interval is ever leaked.
-======================================================= */
-
-
-async waitForImage(id){
-
-    this._stopPolling();
-
-    return new Promise((resolve, reject)=>{
-
-        const started = Date.now();
-        const timeout = this.config.pollTimeout ?? 120000;
-        const intervalMs = this.config.pollInterval ?? 2000;
-        const maxRetries = this.config.pollRetries ?? 3;
-        let consecutiveFailures = 0;
-
-        this._pollResolve = (value)=>{
-            this._stopTimer();
-            this._pollResolve = null;
-            this._pollReject = null;
-            resolve(value);
-        };
-
-        this._pollReject = (error)=>{
-            this._stopTimer();
-            this._pollResolve = null;
-            this._pollReject = null;
-            reject(error);
-        };
-
-        this._pollTimer = setInterval(async ()=>{
-
-            if (Date.now() - started >= timeout) {
-                this._pollReject(new Error("Image generation timed out. Please try again."));
-                return;
-            }
-
-            try {
-
-                const result = await this.checkStatus(id);
-
-                consecutiveFailures = 0;
-
-                if (result.status === "succeeded") {
-                    this._pollResolve(Array.isArray(result.output) ? result.output[0] : result.output);
-                }
-
-                if (result.status === "failed") {
-                    this._pollReject(new Error("Image generation failed"));
-                }
-
-            } catch (error) {
-                // Transient polling/network errors are tolerated up to a
-                // bounded retry count; only then is the failure surfaced.
-                // The overall poll timeout still caps the total wait.
-                consecutiveFailures += 1;
-
-                if (consecutiveFailures > maxRetries) {
-                    this._pollReject(error);
-                }
-            }
-
-        }, intervalMs);
-
-    });
-
-}
-
-_stopTimer(){
-
-    if (this._pollTimer) {
-        clearInterval(this._pollTimer);
-        this._pollTimer = null;
-    }
-
-}
-
-_stopPolling(){
-
-    this._stopTimer();
-
-    if (this._pollReject) {
-        const reject = this._pollReject;
-        this._pollResolve = null;
-        this._pollReject = null;
-        reject(new Error("Image generation cancelled"));
-    }
 
 }
 
@@ -314,8 +208,6 @@ _stopPolling(){
 
 
     destroy(){
-
-        this._stopPolling();
 
         this.clear();
 

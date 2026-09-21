@@ -264,11 +264,6 @@ const repoRoot = path.join(__dirname, "..");
     );
 
     assert.ok(
-        source.includes("imageStatusLimiter.middleware"),
-        "image status applies its limiter"
-    );
-
-    assert.ok(
         source.includes("rateLimiter: chatLimiter"),
         "native stream path receives the chat limiter"
     );

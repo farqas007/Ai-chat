@@ -13,7 +13,7 @@
    which would surface them as a 502.
 =========================================================== */
 
-export const MAX_IMAGE_PROMPT_LENGTH = 10_000;
+export const MAX_IMAGE_PROMPT_LENGTH = 2_048;
 
 export function isValidImagePrompt(prompt) {
 

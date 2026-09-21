@@ -13,8 +13,8 @@
   //    npx wrangler secret put SERVER_API_TOKEN
   //    npx wrangler secret put SESSION_SECRET
   //    npx wrangler secret put OPENROUTER_API_KEY
-  //    npx wrangler secret put REPLICATE_API_KEY
   //  For `wrangler dev`, place them in an untracked .dev.vars file.
+  //  Image generation uses Workers AI (free tier, no secret needed).
   // ===========================================================
 
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -39,6 +39,10 @@
   "vars": {
     "NODE_ENV": "production",
     "CORS_ORIGIN": ""
+  },
+
+  "ai": {
+    "binding": "AI"
   },
 
   "observability": {

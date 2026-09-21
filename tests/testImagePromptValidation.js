@@ -60,7 +60,7 @@ check("P1 padded valid string accepted", isValidImagePrompt("  a cat  ") === tru
    P1b — max prompt length (FIX-08).
 ----------------------------------------------------------- */
 
-check("P1b MAX_IMAGE_PROMPT_LENGTH is 10000", MAX_IMAGE_PROMPT_LENGTH === 10_000);
+check("P1b MAX_IMAGE_PROMPT_LENGTH is 2048", MAX_IMAGE_PROMPT_LENGTH === 2_048);
 
 check(
     "P1b prompt at max length accepted",
@@ -103,6 +103,16 @@ check(
 );
 
 check(
+    "P3 worker uses Workers AI (env.AI.run) for image generation",
+    workerSource.includes("env.AI.run(")
+);
+
+check(
+    "P3 worker no longer uses Replicate for image generation",
+    !workerSource.includes("replicate.com/v1/models")
+);
+
+check(
     "P3 server no longer uses inline `!prompt || !prompt.trim()`",
     !serverSource.includes("!prompt || !prompt.trim()")
 );
@@ -115,6 +125,9 @@ check(
 
 /* -----------------------------------------------------------
    P4 — GET /generate-image/:id maps only safe fields (FIX-07).
+   The Node server retains the Replicate polling endpoint for
+   local development. The Worker no longer has this route
+   (Workers AI is synchronous), so only the server check applies.
 ----------------------------------------------------------- */
 
 check(
@@ -127,18 +140,6 @@ check(
 check(
     "P4 server GET does not return raw response",
     !serverSource.includes("return res.json(data);")
-);
-
-check(
-    "P4 worker GET /generate-image/:id maps id, status, output",
-    workerSource.includes("id: data.id") &&
-    workerSource.includes("status: data.status") &&
-    workerSource.includes("output: data.output")
-);
-
-check(
-    "P4 worker GET does not return raw response",
-    !workerSource.includes("return res.json(data);")
 );
 
 
